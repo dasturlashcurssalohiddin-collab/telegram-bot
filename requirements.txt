@@ -1,0 +1,4 @@
+python-telegram-bot==20.7
+deep-translator==1.11.4
+openai==1.35.0
+edge-tts==6.1.9
