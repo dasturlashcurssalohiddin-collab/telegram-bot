@@ -22,11 +22,11 @@ import edge_tts
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN  = "8646422380:AAEC4hroA9IGQScyHnaIxisSz9jjYVw6z6c"
+BOT_TOKEN  = os.getenv("BOT_TOKEN")
 ADMIN_ID   = 6283517295
 CHANNEL_ID = "@tuxum_kanal"
 
-GROQ_API_KEY = "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"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ai_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 
 DATA_DIR   = os.path.dirname(os.path.abspath(__file__))
@@ -100,7 +100,6 @@ BUTTONS_CATALOG = {
 
 PHONE_NUMBER = "+998951000130"
 
-# Til → edge-tts ovozi
 TTS_VOICES = {
     "uz": "uz-UZ-MadinaNeural",
     "en": "en-US-AriaNeural",
@@ -126,7 +125,7 @@ def save_json(path, data):
 
 ads        = load_json(ADS_FILE, [])
 users      = load_json(USERS_FILE, {})
-user_modes: dict = {}   # {str(user_id): "voice" | "text"}
+user_modes: dict = {}
 
 
 def save_ads():   save_json(ADS_FILE, ads)
@@ -223,8 +222,6 @@ async def send_all_ads(context, chat_id, lang):
         await send_ad_to_chat(context, chat_id, ad, lang)
 
 
-# ======================== TTS (edge-tts) ========================
-
 async def _tts_async(text: str, lang: str, output_path: str):
     voice = TTS_VOICES.get(lang, "en-US-AriaNeural")
     communicate = edge_tts.Communicate(text, voice)
@@ -245,8 +242,6 @@ def text_to_speech(text: str, lang: str) -> bytes | None:
         return None
 
 
-# ======================== STT (Groq Whisper) ========================
-
 def transcribe_voice(file_path: str) -> str | None:
     try:
         with open(file_path, "rb") as f:
@@ -259,8 +254,6 @@ def transcribe_voice(file_path: str) -> str | None:
         logger.warning(f"STT xatosi: {e}")
         return None
 
-
-# ======================== TuxumAI ========================
 
 def get_ai_reply(ad, lang: str, user_message: str) -> str | None:
     ad_text = ad.get("text", "") if ad else ""
@@ -289,7 +282,6 @@ def get_ai_reply(ad, lang: str, user_message: str) -> str | None:
 
 
 async def send_ai_response(context, chat_id: int, user_id: int, text: str, lang: str):
-    """Rejimga qarab matn yoki ovozli javob yuboradi"""
     if get_mode(user_id) == "voice":
         audio = text_to_speech(text, lang)
         if audio:
@@ -304,8 +296,6 @@ async def send_ai_response(context, chat_id: int, user_id: int, text: str, lang:
             return
     await context.bot.send_message(chat_id=chat_id, text=f"🤖 TuxumAI:\n\n{text}")
 
-
-# ======================== START & TIL ========================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = users.get(str(update.effective_user.id), "uz")
@@ -335,8 +325,6 @@ async def lang_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE
     return False
 
 
-# ======================== INLINE TUGMA CALLBACKLARI ========================
-
 async def phone_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -364,7 +352,6 @@ async def contact_button_callback(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def location_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """📍 Manzil tugmasi — Telegram'ning GPS joylashuv tugmasini ko'rsatadi"""
     q = update.callback_query
     lang = get_lang(q.from_user.id)
     context.user_data["awaiting_location_for_ad"] = q.data.split("_", 1)[1]
@@ -388,8 +375,6 @@ async def text_button_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await context.bot.send_message(q.message.chat_id, txt)
 
 
-# ======================== JOYLASHUV HANDLER ========================
-
 async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_lang(user.id)
@@ -409,8 +394,6 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"Adminga joylashuv yuborib bo'lmadi: {e}")
     await update.message.reply_text(tr("location_sent", lang), reply_markup=lang_reply_keyboard())
 
-
-# ======================== OVOZLI XABAR HANDLER ========================
 
 async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -432,8 +415,6 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if reply:
         await send_ai_response(context, update.effective_chat.id, user.id, reply, lang)
 
-
-# ======================== E'LON O'CHIRISH ========================
 
 async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -489,8 +470,6 @@ async def delete_ad_cancel_callback(update: Update, context: ContextTypes.DEFAUL
     await q.answer()
     await q.edit_message_text("❌ O'chirish bekor qilindi.")
 
-
-# ======================== ADMIN: E'LON QO'SHISH ========================
 
 async def elon_photo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -588,15 +567,12 @@ async def broadcast_new_ad(context, ad):
             logger.warning(f"Kanalga yuborib bo'lmadi: {e}")
 
 
-# ======================== MATN XABAR HANDLER ========================
-
 async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_lang(user.id)
     text = update.message.text or ""
     tl   = text.lower()
 
-    # Ovoz rejimi so'zlari
     voice_on  = ["ovozli javob ber", "voice", "ovoz", "speak", "голос", "говори"]
     voice_off = ["ovosiz", "matnli", "text", "без голоса", "without voice", "текст"]
 
@@ -609,7 +585,6 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("💬 Endi matnli javob beraman!")
         return
 
-    # Murojaat kutilmoqda
     if context.user_data.get("awaiting_contact_for_ad"):
         ad_id    = context.user_data.pop("awaiting_contact_for_ad")
         username = f"@{user.username}" if user.username else f"id:{user.id}"
@@ -627,18 +602,14 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
             await send_ai_response(context, update.effective_chat.id, user.id, reply, lang)
         return
 
-    # Til tugmasi
     if await lang_button_pressed(update, context):
         return
 
-    # Oddiy xabar — TuxumAI
     ad = ads[-1] if ads else None
     reply = get_ai_reply(ad, lang, text)
     if reply:
         await send_ai_response(context, update.effective_chat.id, user.id, reply, lang)
 
-
-# ======================== MAIN ========================
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
