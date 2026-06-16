@@ -87,7 +87,6 @@ def tr(key, lang):
     return d.get(lang, d.get("uz", key))
 
 
-# ─── Standart tugmalar katalogi ───────────────────────────────────────────────
 BUTTONS_CATALOG = {
     "phone": {
         "label": {"uz": "📞 Telefon", "en": "📞 Phone", "ru": "📞 Телефон", "de": "📞 Telefon"},
@@ -136,8 +135,6 @@ TTS_VOICES = {
 }
 
 
-# ─── JSON I/O ─────────────────────────────────────────────────────────────────
-
 def load_json(path, default):
     if os.path.exists(path):
         try:
@@ -155,9 +152,7 @@ def save_json(path, data):
 
 ads             = load_json(ADS_FILE, [])
 users           = load_json(USERS_FILE, {})
-# {btn_id: {name, action_value}}  — faqat nom + amal matni
 custom_buttons  = load_json(BUTTONS_FILE, {})
-# {cmd_name: {response_text}}     — faqat buyruq nomi + javob matni
 custom_commands = load_json(COMMANDS_FILE, {})
 events          = load_json(EVENTS_FILE, [])
 
@@ -185,13 +180,22 @@ def log_event(event_type: str, user_id: int, detail: str = ""):
 
 # ─── ConversationHandler holatlari ───────────────────────────────────────────
 WAIT_PHOTO, WAIT_TEXT, SELECT_BUTTONS, WAIT_INFO = range(4)
-BTN_NAME, BTN_ACTION_VALUE = range(10, 12)   # /button: 2 qadam
-CMD_NAME, CMD_RESPONSE     = range(20, 22)   # /cmd:    2 qadam
+
+# /button: 4 qadam — nom, tur, qiymat, (ikkinchi buyruq nomi)
+BTN_NAME, BTN_TYPE, BTN_VALUE = range(10, 13)
+
+# /cmd: 3 qadam — nom1, javob1, nom2, javob2
+CMD_NAME1, CMD_RESP1, CMD_NAME2, CMD_RESP2 = range(20, 24)
 
 LANG_NAME_TO_CODE = {v: k for k, v in LANG_NAMES.items()}
 
+# Tugma turlari
+BTN_TYPES = {
+    "link":    "🔗 Link (URL)",
+    "text":    "📝 Matn (oddiy xabar)",
+    "phone":   "📞 Telefon raqam",
+}
 
-# ─── Yordamchi ────────────────────────────────────────────────────────────────
 
 def lang_inline_keyboard():
     return InlineKeyboardMarkup(
@@ -236,10 +240,8 @@ def get_ad_info_text(ad, lang):
 
 
 def build_ad_keyboard(ad, lang):
-    """Standart + maxsus tugmalarni birlashtiradi"""
     rows, row = [], []
 
-    # 1. Standart tugmalar
     for btn_id in ad.get("buttons", []):
         cat = BUTTONS_CATALOG.get(btn_id)
         if not cat:
@@ -261,10 +263,13 @@ def build_ad_keyboard(ad, lang):
         if len(row) == 2:
             rows.append(row); row = []
 
-    # 2. Maxsus tugmalar (admin /button orqali qo'shganlari)
     for cbtn_id, cbtn in custom_buttons.items():
         label = cbtn.get("name", cbtn_id)
-        row.append(InlineKeyboardButton(label, callback_data=f"custombtn_{cbtn_id}"))
+        btn_type = cbtn.get("btn_type", "text")
+        if btn_type == "link":
+            row.append(InlineKeyboardButton(label, url=cbtn.get("action_value", "#")))
+        else:
+            row.append(InlineKeyboardButton(label, callback_data=f"custombtn_{cbtn_id}"))
         if len(row) == 2:
             rows.append(row); row = []
 
@@ -292,8 +297,6 @@ async def send_all_ads(context, chat_id, lang):
     for ad in ads:
         await send_ad_to_chat(context, chat_id, ad, lang)
 
-
-# ─── TTS / STT ───────────────────────────────────────────────────────────────
 
 async def _tts_async(text: str, lang: str, output_path: str):
     voice = TTS_VOICES.get(lang, "en-US-AriaNeural")
@@ -364,8 +367,6 @@ async def send_ai_response(context, chat_id: int, user_id: int, text: str, lang:
     await context.bot.send_message(chat_id=chat_id, text=f"🤖 TuxumAI:\n\n{text}")
 
 
-# ─── /start ──────────────────────────────────────────────────────────────────
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid  = user.id
@@ -377,8 +378,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log_event("join", uid, user.full_name or "")
     await update.message.reply_text(tr("choose_lang", lang), reply_markup=lang_inline_keyboard())
 
-
-# ─── Til ─────────────────────────────────────────────────────────────────────
 
 async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -402,8 +401,6 @@ async def lang_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE
         return True
     return False
 
-
-# ─── Standart tugma callbacklari ─────────────────────────────────────────────
 
 async def phone_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query; await q.answer()
@@ -464,16 +461,20 @@ async def text_button_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def custom_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maxsus (admin qo'shgan) tugma bosildi"""
     q = update.callback_query
     await q.answer()
     cbtn_id = q.data.split("_", 1)[1]
     cbtn = custom_buttons.get(cbtn_id)
-    if cbtn:
+    if not cbtn:
+        return
+    btn_type = cbtn.get("btn_type", "text")
+    if btn_type == "phone":
+        val = cbtn.get("action_value", "")
+        await context.bot.send_message(q.message.chat_id, f"📞 Telefon: {val}")
+    else:
+        # text
         await context.bot.send_message(q.message.chat_id, cbtn.get("action_value", ""))
 
-
-# ─── Joylashuv ───────────────────────────────────────────────────────────────
 
 async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user  = update.effective_user
@@ -495,8 +496,6 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(tr("location_sent", lang), reply_markup=lang_reply_keyboard())
 
 
-# ─── Ovoz ────────────────────────────────────────────────────────────────────
-
 async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_lang(user.id)
@@ -517,8 +516,6 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if reply:
         await send_ai_response(context, update.effective_chat.id, user.id, reply, lang)
 
-
-# ─── /delete — e'lonni o'chirish ─────────────────────────────────────────────
 
 async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -554,7 +551,6 @@ async def delete_ad_confirm_callback(update: Update, context: ContextTypes.DEFAU
 
 
 async def delete_ad_yes_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """E'lon o'chiriladi + barcha foydalanuvchilarga xabar"""
     q = update.callback_query
     if q.from_user.id != ADMIN_ID:
         await q.answer(); return
@@ -584,7 +580,7 @@ async def delete_ad_cancel_callback(update: Update, context: ContextTypes.DEFAUL
     await q.edit_message_text("❌ O'chirish bekor qilindi.")
 
 
-# ─── E'lon qo'shish (ConversationHandler) ────────────────────────────────────
+# ─── E'lon qo'shish ───────────────────────────────────────────────────────────
 
 async def elon_photo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -618,15 +614,12 @@ async def elon_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def _btn_sel_kb(selected: set):
-    """Standart + custom tugmalarni tanlash klaviaturasi"""
     rows, row = [], []
-    # Standart tugmalar
     for btn_id, info in BUTTONS_CATALOG.items():
         prefix = "✅ " if btn_id in selected else ""
         row.append(InlineKeyboardButton(prefix + info["label"]["uz"], callback_data=f"selbtn_{btn_id}"))
         if len(row) == 2:
             rows.append(row); row = []
-    # Maxsus tugmalar
     for cbtn_id, cbtn in custom_buttons.items():
         prefix = "✅ " if cbtn_id in selected else ""
         row.append(InlineKeyboardButton(prefix + cbtn["name"], callback_data=f"selbtn_c_{cbtn_id}"))
@@ -642,7 +635,7 @@ async def select_buttons_callback(update: Update, context: ContextTypes.DEFAULT_
     q = update.callback_query
     if q.from_user.id != ADMIN_ID:
         await q.answer(); return SELECT_BUTTONS
-    data = q.data[len("selbtn_"):]   # "selbtn_" dan keying qismi
+    data = q.data[len("selbtn_"):]
     selected = context.user_data.get("selected_buttons", set())
     if data == "done":
         await q.answer()
@@ -693,10 +686,6 @@ async def broadcast_new_ad(context, ad):
             logger.warning(f"Kanalga yuborib bo'lmadi: {e}")
 
 
-# ─── /reply — foydalanuvchi yozsa adminга AUTO keladi ────────────────────────
-# Bu logika generic_message_handler ichida — hech narsa bosmasdan avtomatik.
-# /reply <id> <matn> usuli ham saqlanadi.
-
 async def admin_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -714,15 +703,28 @@ async def admin_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(f"❌ Xato: {e}")
 
 
-# ─── /button — maxsus tugma yaratish (2 qadam: nom + amal) ──────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# /button — maxsus tugma yaratish (3 qadam: nom → tur → qiymat)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _btn_type_kb():
+    """Tugma turini tanlash klaviaturasi"""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔗 Link (URL)",     callback_data="btntype_link")],
+        [InlineKeyboardButton("📝 Matn (xabar)",   callback_data="btntype_text")],
+        [InlineKeyboardButton("📞 Telefon raqam",  callback_data="btntype_phone")],
+        [InlineKeyboardButton("❌ Bekor",           callback_data="btntype_cancel")],
+    ])
+
 
 async def button_create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return ConversationHandler.END
+    context.user_data.clear()
     await update.message.reply_text(
         "🔘 Yangi tugma yaratish\n\n"
-        "Tugma nomini yozing:\n"
-        "(masalan: 💬 Savollar, 📦 Mahsulotlar, 🎁 Aksiya)"
+        "1️⃣ Tugma nomini yozing:\n"
+        "(masalan: 📸 Instagram, 💬 Telegram, 🎁 Aksiya)"
     )
     return BTN_NAME
 
@@ -730,27 +732,72 @@ async def button_create_start(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def button_create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["new_btn_name"] = update.message.text.strip()
     await update.message.reply_text(
-        f"✅ Nom: {context.user_data['new_btn_name']}\n\n"
-        "Endi tugma bosilganda ko'rsatiladigan matnni yozing\n"
-        "(istalgan matn, link, narx — xohlagan narsani):"
+        f"✅ Nom: <b>{context.user_data['new_btn_name']}</b>\n\n"
+        "2️⃣ Tugma turini tanlang:",
+        parse_mode="HTML",
+        reply_markup=_btn_type_kb(),
     )
-    return BTN_ACTION_VALUE
+    return BTN_TYPE
+
+
+async def button_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    if q.data == "btntype_cancel":
+        context.user_data.clear()
+        await q.edit_message_text("❌ Bekor qilindi.")
+        return ConversationHandler.END
+
+    chosen = q.data.split("_", 1)[1]   # link | text | phone
+    context.user_data["new_btn_type"] = chosen
+
+    prompts = {
+        "link":  (
+            "3️⃣ Tugma bosilganda ochilishi kerak bo'lgan <b>link</b>ni yozing:\n\n"
+            "Masalan: https://instagram.com/sizning_sahifangiz"
+        ),
+        "text":  (
+            "3️⃣ Tugma bosilganda ko'rsatiladigan <b>matn</b>ni yozing:\n\n"
+            "Masalan: 📦 Mahsulotlar: 10 ta minimal buyurtma..."
+        ),
+        "phone": (
+            "3️⃣ Telefon raqamini yozing:\n\n"
+            "Masalan: +998901234567"
+        ),
+    }
+    await q.edit_message_text(prompts[chosen], parse_mode="HTML")
+    return BTN_VALUE
 
 
 async def button_create_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     btn_name  = context.user_data.get("new_btn_name", "Tugma")
+    btn_type  = context.user_data.get("new_btn_type", "text")
     btn_value = update.message.text.strip()
-    btn_id    = f"cb_{int(time.time())}"
+
+    # Link validatsiya
+    if btn_type == "link" and not (btn_value.startswith("http://") or btn_value.startswith("https://")):
+        await update.message.reply_text(
+            "❌ Link https:// yoki http:// bilan boshlanishi kerak!\n\nQaytadan yozing:"
+        )
+        return BTN_VALUE
+
+    btn_id = f"cb_{int(time.time())}"
     custom_buttons[btn_id] = {
         "name":         btn_name,
+        "btn_type":     btn_type,
         "action_value": btn_value,
     }
     save_custom_buttons()
+
+    type_labels = {"link": "🔗 Link", "text": "📝 Matn", "phone": "📞 Telefon"}
     await update.message.reply_text(
         f"✅ Tugma yaratildi!\n\n"
-        f"🔘 Nom: {btn_name}\n"
-        f"📋 Amal: {btn_value[:100]}\n\n"
-        f"Bu tugma endi barcha e'lonlarda ko'rinadi va tanlanishi mumkin."
+        f"🔘 Nom: <b>{btn_name}</b>\n"
+        f"📌 Tur: {type_labels.get(btn_type, btn_type)}\n"
+        f"📋 Qiymat: {btn_value[:80]}\n\n"
+        f"Bu tugma endi barcha e'lonlarda ko'rinadi.",
+        parse_mode="HTML",
     )
     log_event("new_button", ADMIN_ID, btn_name)
     return ConversationHandler.END
@@ -762,7 +809,7 @@ async def button_create_cancel(update: Update, context: ContextTypes.DEFAULT_TYP
     return ConversationHandler.END
 
 
-# ─── /deletebtn — maxsus tugmani o'chirish ───────────────────────────────────
+# ─── /deletebtn ──────────────────────────────────────────────────────────────
 
 async def button_delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -772,7 +819,8 @@ async def button_delete_command(update: Update, context: ContextTypes.DEFAULT_TY
         return
     rows = []
     for btn_id, btn in custom_buttons.items():
-        rows.append([InlineKeyboardButton(f"🗑 {btn['name']}", callback_data=f"delbtn_{btn_id}")])
+        type_icon = {"link": "🔗", "text": "📝", "phone": "📞"}.get(btn.get("btn_type", "text"), "📝")
+        rows.append([InlineKeyboardButton(f"🗑 {type_icon} {btn['name']}", callback_data=f"delbtn_{btn_id}")])
     rows.append([InlineKeyboardButton("❌ Bekor", callback_data="delbtncancel")])
     await update.message.reply_text("🗑 Qaysi tugmani o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(rows))
 
@@ -794,41 +842,77 @@ async def button_delete_callback(update: Update, context: ContextTypes.DEFAULT_T
         await q.edit_message_text("❌ Tugma topilmadi.")
 
 
-# ─── /cmd — maxsus buyruq yaratish (2 qadam: nom + javob matni) ──────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# /cmd — JUFT buyruq yaratish (2 ta bir vaqtda: /narx va /narx2 kabi)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 async def cmd_create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return ConversationHandler.END
+    context.user_data.clear()
     await update.message.reply_text(
-        "⚙️ Yangi buyruq yaratish\n\n"
-        "Buyruq nomini yozing (/ belgisiz):\n"
-        "(masalan: narx  →  /narx buyrug'i yaratiladi)"
+        "⚙️ Juft buyruq yaratish\n\n"
+        "Bu yerda <b>2 ta bog'liq buyruq</b> yaratiladi.\n"
+        "Masalan: /narx va /narx_batafsil\n\n"
+        "1️⃣ Birinchi buyruq nomini yozing (/ belgisiz):\n"
+        "<i>Masalan: narx</i>",
+        parse_mode="HTML",
     )
-    return CMD_NAME
+    return CMD_NAME1
 
 
-async def cmd_create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_create_name1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip().lstrip("/").replace(" ", "_").lower()
-    context.user_data["new_cmd_name"] = name
+    context.user_data["cmd1_name"] = name
     await update.message.reply_text(
-        f"✅ Buyruq: /{name}\n\n"
-        "Endi /{name} bosilganda qanday javob ko'rsatilsin?\n"
-        "(istalgan matn, narx, ma'lumot — xohlagan narsani yozing):"
+        f"✅ Birinchi buyruq: <b>/{name}</b>\n\n"
+        f"2️⃣ <b>/{name}</b> bosilganda qanday javob ko'rsatilsin?\n"
+        "<i>(narx, matn, istalgan ma'lumot)</i>",
+        parse_mode="HTML",
     )
-    return CMD_RESPONSE
+    return CMD_RESP1
 
 
-async def cmd_create_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cmd_name = context.user_data.get("new_cmd_name", "cmd")
-    cmd_resp = update.message.text.strip()
-    custom_commands[cmd_name] = {"response_text": cmd_resp}
+async def cmd_create_resp1(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["cmd1_resp"] = update.message.text.strip()
+    name1 = context.user_data["cmd1_name"]
+    await update.message.reply_text(
+        f"✅ Birinchi buyruq saqlandi!\n\n"
+        f"3️⃣ Endi ikkinchi buyruq nomini yozing (/ belgisiz):\n"
+        f"<i>Masalan: {name1}_batafsil  yoki  aksiya</i>",
+        parse_mode="HTML",
+    )
+    return CMD_NAME2
+
+
+async def cmd_create_name2(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    name = update.message.text.strip().lstrip("/").replace(" ", "_").lower()
+    context.user_data["cmd2_name"] = name
+    await update.message.reply_text(
+        f"✅ Ikkinchi buyruq: <b>/{name}</b>\n\n"
+        f"4️⃣ <b>/{name}</b> bosilganda qanday javob ko'rsatilsin?",
+        parse_mode="HTML",
+    )
+    return CMD_RESP2
+
+
+async def cmd_create_resp2(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cmd1_name = context.user_data.get("cmd1_name", "cmd1")
+    cmd1_resp = context.user_data.get("cmd1_resp", "")
+    cmd2_name = context.user_data.get("cmd2_name", "cmd2")
+    cmd2_resp = update.message.text.strip()
+
+    custom_commands[cmd1_name] = {"response_text": cmd1_resp}
+    custom_commands[cmd2_name] = {"response_text": cmd2_resp}
     save_custom_commands()
+
     await update.message.reply_text(
-        f"✅ Buyruq yaratildi!\n\n"
-        f"📌 /{cmd_name} — endi ishlaydi\n\n"
-        f"Javob matni:\n{cmd_resp}"
+        f"✅ Ikkala buyruq yaratildi!\n\n"
+        f"📌 <b>/{cmd1_name}</b>\n{cmd1_resp[:80]}\n\n"
+        f"📌 <b>/{cmd2_name}</b>\n{cmd2_resp[:80]}",
+        parse_mode="HTML",
     )
-    log_event("new_command", ADMIN_ID, cmd_name)
+    log_event("new_command", ADMIN_ID, f"{cmd1_name}+{cmd2_name}")
     return ConversationHandler.END
 
 
@@ -838,7 +922,7 @@ async def cmd_create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# ─── /deletecmd — maxsus buyruqni o'chirish ──────────────────────────────────
+# ─── /deletecmd ──────────────────────────────────────────────────────────────
 
 async def cmd_delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -867,7 +951,7 @@ async def cmd_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     log_event("delete_command", ADMIN_ID, cname)
 
 
-# ─── /fj — faollik jadvali ───────────────────────────────────────────────────
+# ─── /fj ─────────────────────────────────────────────────────────────────────
 
 async def faollik_jadvali(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -881,7 +965,6 @@ async def faollik_jadvali(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active   = len(active_ids)
     inactive = total - active
 
-    # Soatlik grafik
     hourly = {}
     for i in range(24):
         t0    = now - (24 - i) * 3600
@@ -940,7 +1023,6 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
     text = update.message.text or ""
     tl   = text.lower()
 
-    # Ovoz rejimi
     voice_on  = ["ovozli javob ber", "voice", "ovoz", "speak", "голос", "говори"]
     voice_off = ["ovosiz", "matnli", "text", "без голоса", "without voice", "текст"]
     if any(t in tl for t in voice_on):
@@ -948,11 +1030,9 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
     if any(t in tl for t in voice_off):
         set_mode(user.id, "text");  await update.message.reply_text("💬 Endi matnli javob beraman!"); return
 
-    # Til tugmasi
     if await lang_button_pressed(update, context):
         return
 
-    # Maxsus buyruqlar (/narx, /info va h.k.)
     if text.startswith("/"):
         cmd = text.lstrip("/").split()[0].lower()
         if cmd in custom_commands:
@@ -960,7 +1040,6 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
             log_event("message", user.id, f"cmd:{cmd}")
             return
 
-    # TuxumAI holati
     if get_state(user.id) == "tuxumai":
         ad_id = context.user_data.get("tuxumai_ad_id")
         ad    = next((a for a in ads if a["id"] == ad_id), None) if ad_id else (ads[-1] if ads else None)
@@ -970,12 +1049,7 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
         log_event("message", user.id, "tuxumai")
         return
 
-    # ══════════════════════════════════════════════════════
-    # ASOSIY: foydalanuvchi yozsa — AVTOMATIK adminга keladi
-    # Hech narsa bosish shart emas!
-    # ══════════════════════════════════════════════════════
     username = f"@{user.username}" if user.username else f"id:{user.id}"
-
     try:
         await context.bot.send_message(
             ADMIN_ID,
@@ -998,7 +1072,6 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # E'lon qo'shish
     elon_conv = ConversationHandler(
         entry_points=[CommandHandler("elon_photo", elon_photo_start)],
         states={
@@ -1011,23 +1084,26 @@ def main():
         allow_reentry=True,
     )
 
-    # /button — 2 qadam
+    # /button — 3 qadam: nom → tur (callback) → qiymat
     btn_conv = ConversationHandler(
         entry_points=[CommandHandler("button", button_create_start)],
         states={
-            BTN_NAME:         [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_name)],
-            BTN_ACTION_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_value)],
+            BTN_NAME:  [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_name)],
+            BTN_TYPE:  [CallbackQueryHandler(button_type_callback, pattern=r"^btntype_")],
+            BTN_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_value)],
         },
         fallbacks=[CommandHandler("cancel", button_create_cancel)],
         allow_reentry=True,
     )
 
-    # /cmd — 2 qadam
+    # /cmd — 4 qadam: nom1 → javob1 → nom2 → javob2
     cmd_conv = ConversationHandler(
         entry_points=[CommandHandler("cmd", cmd_create_start)],
         states={
-            CMD_NAME:     [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_name)],
-            CMD_RESPONSE: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_response)],
+            CMD_NAME1: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_name1)],
+            CMD_RESP1: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_resp1)],
+            CMD_NAME2: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_name2)],
+            CMD_RESP2: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_resp2)],
         },
         fallbacks=[CommandHandler("cancel", cmd_create_cancel)],
         allow_reentry=True,
