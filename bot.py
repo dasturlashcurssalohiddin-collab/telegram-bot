@@ -33,6 +33,10 @@ DATA_DIR   = os.path.dirname(os.path.abspath(__file__))
 ADS_FILE   = os.path.join(DATA_DIR, "ads.json")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 
+# Admin xaritasi koordinatalari (o'zingizning manzilingiz)
+ADMIN_LATITUDE  = 41.2995
+ADMIN_LONGITUDE = 69.2401
+
 LANGS = ["uz", "en", "ru", "de"]
 LANG_NAMES = {
     "uz": "🇺🇿 O'zbek tili",
@@ -59,8 +63,26 @@ T = {
     "write_contact":  {"uz": "✍️ Xabaringizni yozing, sotuvchiga yuboriladi:", "en": "✍️ Write your message:", "ru": "✍️ Напишите сообщение продавцу:", "de": "✍️ Nachricht an den Verkäufer:"},
     "contact_sent":   {"uz": "✅ Xabaringiz sotuvchiga yuborildi.", "en": "✅ Message sent to seller.", "ru": "✅ Сообщение отправлено.", "de": "✅ Nachricht gesendet."},
     "send_location":  {"uz": "📍 Joylashuvingizni yuboring:", "en": "📍 Send your location:", "ru": "📍 Отправьте местоположение:", "de": "📍 Standort senden:"},
-    "location_sent":  {"uz": "✅ Joylashuvingiz sotuvchiga yuborildi.", "en": "✅ Location sent to seller.", "ru": "✅ Местоположение отправлено.", "de": "✅ Standort gesendet."},
+    "location_sent":  {"uz": "✅ Joylashuvingiz sotuvchiga yuborildi.", "en": "✅ Location sent to seller.", "ru": "✅ Местоположение отправlено.", "de": "✅ Standort gesendet."},
     "location_btn_label": {"uz": "📍 Joylashuvni yuborish", "en": "📍 Send Location", "ru": "📍 Отправить местоположение", "de": "📍 Standort senden"},
+    "delivery_location": {
+        "uz": "🚚 Olib kelish manzili:\n\nQuyidagi xaritadan manzilimizni ko'ring!",
+        "en": "🚚 Delivery address:\n\nSee our location on the map below!",
+        "ru": "🚚 Адрес доставки:\n\nСмотрите наш адрес на карте ниже!",
+        "de": "🚚 Lieferadresse:\n\nSehen Sie unsere Adresse auf der Karte unten!",
+    },
+    "tuxumai_greeting": {
+        "uz": "🤖 TuxumAI bilan suhbatlashmoqchimisiz? Savolingizni yozing:",
+        "en": "🤖 Want to chat with TuxumAI? Write your question:",
+        "ru": "🤖 Хотите пообщаться с TuxumAI? Напишите вопрос:",
+        "de": "🤖 Möchten Sie mit TuxumAI chatten? Schreiben Sie Ihre Frage:",
+    },
+    "user_msg_to_admin": {
+        "uz": "✉️ Foydalanuvchi xabari keldi:",
+        "en": "✉️ User message received:",
+        "ru": "✉️ Получено сообщение от пользователя:",
+        "de": "✉️ Nachricht vom Benutzer erhalten:",
+    },
 }
 
 
@@ -92,9 +114,19 @@ BUTTONS_CATALOG = {
         "label": {"uz": "📍 Manzil", "en": "📍 Location", "ru": "📍 Адрес", "de": "📍 Standort"},
         "type": "location_request",
     },
-    "contact": {
-        "label": {"uz": "✉️ Murojaat", "en": "✉️ Contact", "ru": "✉️ Связаться", "de": "✉️ Kontakt"},
-        "type": "contact_admin",
+    # "contact" o'chirildi, o'rniga "tuxumai" va "market" va "delivery" qo'shildi
+    "tuxumai": {
+        "label": {"uz": "🤖 TuxumAI", "en": "🤖 TuxumAI", "ru": "🤖 TuxumAI", "de": "🤖 TuxumAI"},
+        "type": "tuxumai",
+    },
+    "market": {
+        "label": {"uz": "🛒 Tuxum Market", "en": "🛒 Tuxum Market", "ru": "🛒 Tuxum Market", "de": "🛒 Tuxum Market"},
+        "type": "url",
+        "url": "https://salohiddin900.github.io/tuxum-market/",
+    },
+    "delivery": {
+        "label": {"uz": "🚚 Olib kelish", "en": "🚚 Delivery", "ru": "🚚 Доставка", "de": "🚚 Lieferung"},
+        "type": "delivery",
     },
 }
 
@@ -126,6 +158,8 @@ def save_json(path, data):
 ads        = load_json(ADS_FILE, [])
 users      = load_json(USERS_FILE, {})
 user_modes: dict = {}
+# Foydalanuvchi holati: "normal" yoki "tuxumai" (AI bilan suhbat)
+user_states: dict = {}
 
 
 def save_ads():   save_json(ADS_FILE, ads)
@@ -133,6 +167,8 @@ def save_users(): save_json(USERS_FILE, users)
 def get_lang(uid): return users.get(str(uid), "uz")
 def get_mode(uid): return user_modes.get(str(uid), "text")
 def set_mode(uid, mode): user_modes[str(uid)] = mode
+def get_state(uid): return user_states.get(str(uid), "normal")
+def set_state(uid, state): user_states[str(uid)] = state
 
 
 WAIT_PHOTO, WAIT_TEXT, SELECT_BUTTONS, WAIT_INFO = range(4)
@@ -188,14 +224,21 @@ def build_ad_keyboard(ad, lang):
             continue
         label = cat["label"].get(lang, cat["label"]["uz"])
         t = cat["type"]
-        cb = (
-            f"phone_{ad['id']}"    if t == "phone"            else
-            f"info_{ad['id']}"     if t == "info"             else
-            f"contact_{ad['id']}"  if t == "contact_admin"    else
-            f"location_{ad['id']}" if t == "location_request" else
-            f"btn_{ad['id']}_{btn_id}"
-        )
-        row.append(InlineKeyboardButton(label, callback_data=cb))
+
+        if t == "url":
+            # URL tugmasi - to'g'ridan-to'g'ri link
+            row.append(InlineKeyboardButton(label, url=cat["url"]))
+        else:
+            cb = (
+                f"phone_{ad['id']}"    if t == "phone"            else
+                f"info_{ad['id']}"     if t == "info"             else
+                f"tuxumai_{ad['id']}"  if t == "tuxumai"          else
+                f"delivery_{ad['id']}" if t == "delivery"         else
+                f"location_{ad['id']}" if t == "location_request" else
+                f"btn_{ad['id']}_{btn_id}"
+            )
+            row.append(InlineKeyboardButton(label, callback_data=cb))
+
         if len(row) == 2:
             rows.append(row); row = []
     if row: rows.append(row)
@@ -262,7 +305,7 @@ def get_ai_reply(ad, lang: str, user_message: str) -> str | None:
         "Sening isming TuxumAI. Sen aqlli yordamchi sun'iy intellektsan. "
         "Har qanday savolga javob ber — mavzu cheklovlarsiz. "
         "Agar 'sen kimsan' deb so'rashsa — 'Men TuxumAI man' de. "
-        "Bu tuxum sotish Telegram boti. Tugmalar: Telefon, Ma'lumot, Sifat kafolati, Manzil, Murojaat.\n\n"
+        "Bu tuxum sotish Telegram boti. Tugmalar: Telefon, Ma'lumot, Sifat kafolati, Manzil, TuxumAI, Tuxum Market, Olib kelish.\n\n"
         f"E'lon: {ad_text}\nQo'shimcha: {ad_info or 'yoq'}\n\n"
         f"Javobni {lang} tilida yoz. Qisqa, do'stona, aniq."
     )
@@ -299,6 +342,8 @@ async def send_ai_response(context, chat_id: int, user_id: int, text: str, lang:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = users.get(str(update.effective_user.id), "uz")
+    # Holatni normal qilib tiklash
+    set_state(update.effective_user.id, "normal")
     await update.message.reply_text(tr("choose_lang", lang), reply_markup=lang_inline_keyboard())
 
 
@@ -343,12 +388,35 @@ async def info_button_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await context.bot.send_message(q.message.chat_id, tr("no_info_yet", lang))
 
 
-async def contact_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def tuxumai_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """TuxumAI tugmasi bosilganda - foydalanuvchini AI suhbat holatiga o'tkazish"""
     q = update.callback_query
     lang = get_lang(q.from_user.id)
-    context.user_data["awaiting_contact_for_ad"] = q.data.split("_", 1)[1]
+    ad_id = q.data.split("_", 1)[1]
+    # Foydalanuvchini tuxumai holatiga o'tkazamiz va qaysi e'lon ekanini saqlaymiz
+    set_state(q.from_user.id, "tuxumai")
+    context.user_data["tuxumai_ad_id"] = ad_id
     await q.answer()
-    await context.bot.send_message(q.message.chat_id, tr("write_contact", lang))
+    await context.bot.send_message(
+        q.message.chat_id,
+        tr("tuxumai_greeting", lang)
+    )
+
+
+async def delivery_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Olib kelish tugmasi - admin xaritasini yuborish"""
+    q = update.callback_query
+    lang = get_lang(q.from_user.id)
+    await q.answer()
+    await context.bot.send_message(
+        q.message.chat_id,
+        tr("delivery_location", lang)
+    )
+    await context.bot.send_location(
+        chat_id=q.message.chat_id,
+        latitude=ADMIN_LATITUDE,
+        longitude=ADMIN_LONGITUDE,
+    )
 
 
 async def location_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -585,30 +653,52 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("💬 Endi matnli javob beraman!")
         return
 
-    if context.user_data.get("awaiting_contact_for_ad"):
-        ad_id    = context.user_data.pop("awaiting_contact_for_ad")
-        username = f"@{user.username}" if user.username else f"id:{user.id}"
-        try:
-            await context.bot.send_message(
-                ADMIN_ID,
-                f"✉️ Murojaat (e'lon: {ad_id})\n👤 {user.full_name or ''} ({username})\n\n{text}"
-            )
-        except Exception as e:
-            logger.warning(f"Adminga xabar yuborib bo'lmadi: {e}")
-        await update.message.reply_text(tr("contact_sent", lang))
-        ad = next((a for a in ads if a["id"] == ad_id), None)
+    # Til tugmasi bosilganmi tekshirish
+    if await lang_button_pressed(update, context):
+        return
+
+    # ── TuxumAI holati ──
+    # Foydalanuvchi TuxumAI tugmasini bosib suhbat boshlagan bo'lsa
+    if get_state(user.id) == "tuxumai":
+        ad_id = context.user_data.get("tuxumai_ad_id")
+        ad = next((a for a in ads if a["id"] == ad_id), None) if ad_id else (ads[-1] if ads else None)
         reply = get_ai_reply(ad, lang, text)
         if reply:
             await send_ai_response(context, update.effective_chat.id, user.id, reply, lang)
         return
 
-    if await lang_button_pressed(update, context):
-        return
+    # ── Normal holat: xabar adminga boradi ──
+    username = f"@{user.username}" if user.username else f"id:{user.id}"
+    try:
+        await context.bot.send_message(
+            ADMIN_ID,
+            f"✉️ Foydalanuvchi xabari:\n"
+            f"👤 {user.full_name or ''} ({username})\n\n"
+            f"{text}"
+        )
+    except Exception as e:
+        logger.warning(f"Adminga xabar yuborib bo'lmadi: {e}")
 
-    ad = ads[-1] if ads else None
-    reply = get_ai_reply(ad, lang, text)
-    if reply:
-        await send_ai_response(context, update.effective_chat.id, user.id, reply, lang)
+    # Admin javob bera olishi uchun foydalanuvchi ID sini saqlaymiz
+    # (Ixtiyoriy: admin /reply <user_id> <matn> kabi buyruq qo'shsa bo'ladi)
+    await update.message.reply_text(tr("contact_sent", lang))
+
+
+async def admin_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin foydalanuvchiga javob berish uchun: /reply <user_id> <matn>"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args
+    if not args or len(args) < 2:
+        await update.message.reply_text("❌ Foydalanish: /reply <user_id> <matn>")
+        return
+    try:
+        target_id = int(args[0])
+        reply_text = " ".join(args[1:])
+        await context.bot.send_message(target_id, f"💬 Admin javobi:\n\n{reply_text}")
+        await update.message.reply_text(f"✅ Javob {target_id} ga yuborildi.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xato: {e}")
 
 
 def main():
@@ -628,12 +718,14 @@ def main():
 
     app.add_handler(CommandHandler("start",  start))
     app.add_handler(CommandHandler("delete", delete_command))
+    app.add_handler(CommandHandler("reply",  admin_reply_command))
     app.add_handler(conv)
 
     app.add_handler(CallbackQueryHandler(set_language_callback,      pattern=r"^setlang_"))
     app.add_handler(CallbackQueryHandler(phone_button_callback,      pattern=r"^phone_"))
     app.add_handler(CallbackQueryHandler(info_button_callback,       pattern=r"^info_"))
-    app.add_handler(CallbackQueryHandler(contact_button_callback,    pattern=r"^contact_"))
+    app.add_handler(CallbackQueryHandler(tuxumai_button_callback,    pattern=r"^tuxumai_"))
+    app.add_handler(CallbackQueryHandler(delivery_button_callback,   pattern=r"^delivery_"))
     app.add_handler(CallbackQueryHandler(location_button_callback,   pattern=r"^location_"))
     app.add_handler(CallbackQueryHandler(text_button_callback,       pattern=r"^btn_"))
     app.add_handler(CallbackQueryHandler(delete_ad_confirm_callback, pattern=r"^deladconfirm_"))
