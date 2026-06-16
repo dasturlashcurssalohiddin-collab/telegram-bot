@@ -36,6 +36,7 @@ USERS_FILE      = os.path.join(DATA_DIR, "users.json")
 BUTTONS_FILE    = os.path.join(DATA_DIR, "custom_buttons.json")
 COMMANDS_FILE   = os.path.join(DATA_DIR, "custom_commands.json")
 EVENTS_FILE     = os.path.join(DATA_DIR, "events.json")
+LOCATION_FILE   = os.path.join(DATA_DIR, "delivery_location.json")
 
 ADMIN_LATITUDE  = 41.2995
 ADMIN_LONGITUDE = 69.2401
@@ -155,6 +156,12 @@ users           = load_json(USERS_FILE, {})
 custom_buttons  = load_json(BUTTONS_FILE, {})
 custom_commands = load_json(COMMANDS_FILE, {})
 events          = load_json(EVENTS_FILE, [])
+
+# Yetkazib berish manzilini yuklash
+_loc = load_json(LOCATION_FILE, {})
+if _loc:
+    ADMIN_LATITUDE  = _loc.get("lat", ADMIN_LATITUDE)
+    ADMIN_LONGITUDE = _loc.get("lon", ADMIN_LONGITUDE)
 
 user_modes:  dict = {}
 user_states: dict = {}
