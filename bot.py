@@ -30,16 +30,14 @@ CHANNEL_ID = "@tuxum_kanal"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ai_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 
-# Railway Volume uchun DATA_DIR env dan olish
-DATA_DIR        = os.getenv("DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR        = os.path.dirname(os.path.abspath(__file__))
 ADS_FILE        = os.path.join(DATA_DIR, "ads.json")
 USERS_FILE      = os.path.join(DATA_DIR, "users.json")
 BUTTONS_FILE    = os.path.join(DATA_DIR, "custom_buttons.json")
 COMMANDS_FILE   = os.path.join(DATA_DIR, "custom_commands.json")
 EVENTS_FILE     = os.path.join(DATA_DIR, "events.json")
-LOCATION_FILE   = os.path.join(DATA_DIR, "delivery_location.json")
-ORDERS_FILE     = os.path.join(DATA_DIR, "orders.json")
-MESSAGES_FILE   = os.path.join(DATA_DIR, "messages.json")
+AD_MESSAGES_FILE = os.path.join(DATA_DIR, "ad_messages.json")
+# Tuzilma: { ad_id: { "chat_id": message_id, ... } }
 
 ADMIN_LATITUDE  = 41.2995
 ADMIN_LONGITUDE = 69.2401
@@ -69,7 +67,7 @@ T = {
     "no_info_yet":    {"uz": "Ma'lumot kiritilmagan.", "en": "No information provided.", "ru": "Информация не указана.", "de": "Keine Information vorhanden."},
     "contact_sent":   {"uz": "✅ Xabaringiz sotuvchiga yuborildi.", "en": "✅ Message sent to seller.", "ru": "✅ Сообщение отправлено.", "de": "✅ Nachricht gesendet."},
     "send_location":  {"uz": "📍 Joylashuvingizni yuboring:", "en": "📍 Send your location:", "ru": "📍 Отправьте местоположение:", "de": "📍 Standort senden:"},
-    "location_sent":  {"uz": "✅ Joylashuvingiz sotuvchiga yuborildi.", "en": "✅ Location sent to seller.", "ru": "✅ Местоположение отправлено.", "de": "✅ Standort gesendet."},
+    "location_sent":  {"uz": "✅ Joylashuvingiz sotuvchiga yuborildi.", "en": "✅ Location sent to seller.", "ru": "✅ Местоположение отправлeno.", "de": "✅ Standort gesendet."},
     "location_btn_label": {"uz": "📍 Joylashuvni yuborish", "en": "📍 Send Location", "ru": "📍 Отправить местоположение", "de": "📍 Standort senden"},
     "delivery_location": {
         "uz": "🚚 Olib kelish manzili:\n\nQuyidagi xaritadan manzilimizni ko'ring!",
@@ -83,71 +81,23 @@ T = {
         "ru": "🤖 Хотите пообщаться с TuxumAI? Напишите вопрос:",
         "de": "🤖 Möchten Sie mit TuxumAI chatten? Schreiben Sie Ihre Frage:",
     },
-    "order_ask_qty": {
-        "uz": "🛒 Nechta tuxum buyurtma qilmoqchisiz? (sonini yozing):",
-        "en": "🛒 How many eggs would you like to order?",
-        "ru": "🛒 Сколько яиц вы хотите заказать?",
-        "de": "🛒 Wie viele Eier möchten Sie bestellen?",
+    "ask_phone": {
+        "uz": "📞 Telefon raqamingizni yozing\n(masalan: +998901234567):",
+        "en": "📞 Please enter your phone number\n(e.g. +998901234567):",
+        "ru": "📞 Введите ваш номер телефона\n(например: +998901234567):",
+        "de": "📞 Bitte geben Sie Ihre Telefonnummer ein\n(z.B. +998901234567):",
     },
-    "order_ask_address": {
-        "uz": "📦 Yetkazib berish manzilingizni yozing yoki joylashuvingizni yuboring:",
-        "en": "📦 Enter your delivery address or send your location:",
-        "ru": "📦 Введите адрес доставки или отправьте местоположение:",
-        "de": "📦 Geben Sie Ihre Lieferadresse ein oder senden Sie Ihren Standort:",
+    "phone_sent_user": {
+        "uz": "✅ Raqamingiz yuborildi! Tez orada qo'ng'iroq qilamiz.",
+        "en": "✅ Your number has been sent! We will call you soon.",
+        "ru": "✅ Ваш номер отправлен! Скоро перезвоним.",
+        "de": "✅ Ihre Nummer wurde gesendet! Wir rufen Sie bald an.",
     },
-    "order_ask_phone": {
-        "uz": "📞 Telefon raqamingizni yozing (masalan: +998901234567):",
-        "en": "📞 Enter your phone number:",
-        "ru": "📞 Введите ваш номер телефона:",
-        "de": "📞 Geben Sie Ihre Telefonnummer ein:",
-    },
-    "order_confirm": {
-        "uz": "✅ Buyurtmangiz qabul qilindi! Tez orada siz bilan bog'lanamiz.",
-        "en": "✅ Your order has been received! We will contact you soon.",
-        "ru": "✅ Ваш заказ принят! Мы свяжемся с вами в ближайшее время.",
-        "de": "✅ Ihre Bestellung wurde erhalten! Wir werden uns bald bei Ihnen melden.",
-    },
-    "order_status": {
-        "uz": "📋 Sizning buyurtmalaringiz:",
-        "en": "📋 Your orders:",
-        "ru": "📋 Ваши заказы:",
-        "de": "📋 Ihre Bestellungen:",
-    },
-    "no_orders": {
-        "uz": "Sizda hali buyurtma yo'q.",
-        "en": "You have no orders yet.",
-        "ru": "У вас пока нет заказов.",
-        "de": "Sie haben noch keine Bestellungen.",
-    },
-    "write_message": {
-        "uz": "✍️ Adminga xabaringizni yozing:",
-        "en": "✍️ Write your message to admin:",
-        "ru": "✍️ Напишите сообщение администратору:",
-        "de": "✍️ Schreiben Sie Ihre Nachricht an den Admin:",
-    },
-    "message_sent": {
-        "uz": "✅ Xabaringiz adminga yuborildi!",
-        "en": "✅ Your message has been sent to admin!",
-        "ru": "✅ Ваше сообщение отправлено администратору!",
-        "de": "✅ Ihre Nachricht wurde an den Admin gesendet!",
-    },
-    "admin_replied": {
-        "uz": "💬 Admin javobi:\n\n",
-        "en": "💬 Admin reply:\n\n",
-        "ru": "💬 Ответ администратора:\n\n",
-        "de": "💬 Admin-Antwort:\n\n",
-    },
-    "order_cancelled": {
-        "uz": "❌ Buyurtma bekor qilindi.",
-        "en": "❌ Order cancelled.",
-        "ru": "❌ Заказ отменён.",
-        "de": "❌ Bestellung storniert.",
-    },
-    "invalid_qty": {
-        "uz": "❌ Iltimos, to'g'ri son kiriting (masalan: 10):",
-        "en": "❌ Please enter a valid number:",
-        "ru": "❌ Пожалуйста, введите правильное число:",
-        "de": "❌ Bitte geben Sie eine gültige Zahl ein:",
+    "phone_invalid": {
+        "uz": "❌ Noto'g'ri format. Raqamni qayta kiriting\n(masalan: +998901234567):",
+        "en": "❌ Invalid format. Please re-enter\n(e.g. +998901234567):",
+        "ru": "❌ Неверный формат. Введите снова\n(например: +998901234567):",
+        "de": "❌ Ungültiges Format. Bitte erneut eingeben\n(z.B. +998901234567):",
     },
 }
 
@@ -157,6 +107,7 @@ def tr(key, lang):
     return d.get(lang, d.get("uz", key))
 
 
+# ─── Standart tugmalar katalogi ───────────────────────────────────────────────
 BUTTONS_CATALOG = {
     "phone": {
         "label": {"uz": "📞 Telefon", "en": "📞 Phone", "ru": "📞 Телефон", "de": "📞 Telefon"},
@@ -193,14 +144,6 @@ BUTTONS_CATALOG = {
         "label": {"uz": "🚚 Olib kelish", "en": "🚚 Delivery", "ru": "🚚 Доставка", "de": "🚚 Lieferung"},
         "type": "delivery",
     },
-    "order": {
-        "label": {"uz": "🛍 Buyurtma", "en": "🛍 Order", "ru": "🛍 Заказать", "de": "🛍 Bestellen"},
-        "type": "order",
-    },
-    "message_admin": {
-        "label": {"uz": "✉️ Xabar yozish", "en": "✉️ Send message", "ru": "✉️ Написать", "de": "✉️ Nachricht"},
-        "type": "message_admin",
-    },
 }
 
 PHONE_NUMBER = "+998951000130"
@@ -212,14 +155,8 @@ TTS_VOICES = {
     "de": "de-DE-KatjaNeural",
 }
 
-ORDER_STATUSES = {
-    "new":        {"uz": "🆕 Yangi", "en": "🆕 New", "ru": "🆕 Новый", "de": "🆕 Neu"},
-    "confirmed":  {"uz": "✅ Tasdiqlangan", "en": "✅ Confirmed", "ru": "✅ Подтверждён", "de": "✅ Bestätigt"},
-    "delivering": {"uz": "🚚 Yetkazilmoqda", "en": "🚚 Delivering", "ru": "🚚 Доставляется", "de": "🚚 Wird geliefert"},
-    "done":       {"uz": "✅ Bajarildi", "en": "✅ Done", "ru": "✅ Выполнен", "de": "✅ Erledigt"},
-    "cancelled":  {"uz": "❌ Bekor", "en": "❌ Cancelled", "ru": "❌ Отменён", "de": "❌ Storniert"},
-}
 
+# ─── JSON I/O ─────────────────────────────────────────────────────────────────
 
 def load_json(path, default):
     if os.path.exists(path):
@@ -232,33 +169,19 @@ def load_json(path, default):
 
 
 def save_json(path, data):
-    # Atomic write: avval temp faylga yoz, keyin rename
-    tmp_path = path + ".tmp"
-    try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, path)
-    except Exception as e:
-        logger.error(f"save_json xato ({path}): {e}")
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-        raise
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 ads             = load_json(ADS_FILE, [])
 users           = load_json(USERS_FILE, {})
+# {btn_id: {name, action_value}}  — faqat nom + amal matni
 custom_buttons  = load_json(BUTTONS_FILE, {})
+# {cmd_name: {response_text}}     — faqat buyruq nomi + javob matni
 custom_commands = load_json(COMMANDS_FILE, {})
 events          = load_json(EVENTS_FILE, [])
-orders          = load_json(ORDERS_FILE, [])
-messages_store  = load_json(MESSAGES_FILE, [])
-
-_loc = load_json(LOCATION_FILE, {})
-if _loc:
-    ADMIN_LATITUDE  = _loc.get("lat", ADMIN_LATITUDE)
-    ADMIN_LONGITUDE = _loc.get("lon", ADMIN_LONGITUDE)
+ad_messages     = load_json(AD_MESSAGES_FILE, {})
+# ad_messages[ad_id][str(chat_id)] = message_id
 
 user_modes:  dict = {}
 user_states: dict = {}
@@ -268,29 +191,8 @@ def save_users():           save_json(USERS_FILE, users)
 def save_custom_buttons():  save_json(BUTTONS_FILE, custom_buttons)
 def save_custom_commands(): save_json(COMMANDS_FILE, custom_commands)
 def save_events():          save_json(EVENTS_FILE, events)
-def save_orders():          save_json(ORDERS_FILE, orders)
-def save_messages():        save_json(MESSAGES_FILE, messages_store)
-
-def get_lang(uid):
-    val = users.get(str(uid), "uz")
-    if isinstance(val, dict):
-        return val.get("lang", "uz")
-    return val
-
-def get_user_info(uid):
-    val = users.get(str(uid), {})
-    if isinstance(val, str):
-        return {"lang": val}
-    return val
-
-def set_user_info(uid, key, value):
-    val = users.get(str(uid), {})
-    if isinstance(val, str):
-        val = {"lang": val}
-    val[key] = value
-    users[str(uid)] = val
-    save_users()
-
+def save_ad_messages():     save_json(AD_MESSAGES_FILE, ad_messages)
+def get_lang(uid):          return users.get(str(uid), "uz")
 def get_mode(uid):          return user_modes.get(str(uid), "text")
 def set_mode(uid, mode):    user_modes[str(uid)] = mode
 def get_state(uid):         return user_states.get(str(uid), "normal")
@@ -306,21 +208,18 @@ def log_event(event_type: str, user_id: int, detail: str = ""):
 
 # ─── ConversationHandler holatlari ───────────────────────────────────────────
 WAIT_PHOTO, WAIT_TEXT, SELECT_BUTTONS, WAIT_INFO = range(4)
-BTN_NAME, BTN_TYPE, BTN_VALUE = range(10, 13)
-CMD_NAME1, CMD_RESP1, CMD_NAME2, CMD_RESP2 = range(20, 24)
+BTN_NAME, BTN_ACTION_VALUE = range(10, 12)   # /button: 2 qadam
+CMD_NAME, CMD_RESPONSE     = range(20, 22)   # /cmd:    2 qadam
+WAIT_PHONE_NUMBER          = 30              # 📞 telefon raqam kutish holati
 
-ORDER_QTY, ORDER_ADDRESS, ORDER_PHONE = range(30, 33)
-USER_MSG = 40
-BROADCAST_MSG = 50
+# Telefon tugmasi bosilganda qaysi e'lon ekanini saqlaymiz
+# { user_id: ad_id }
+phone_waiting: dict = {}
 
 LANG_NAME_TO_CODE = {v: k for k, v in LANG_NAMES.items()}
 
-BTN_TYPES = {
-    "link":    "🔗 Link (URL)",
-    "text":    "📝 Matn (oddiy xabar)",
-    "phone":   "📞 Telefon raqam",
-}
 
+# ─── Yordamchi ────────────────────────────────────────────────────────────────
 
 def lang_inline_keyboard():
     return InlineKeyboardMarkup(
@@ -365,8 +264,10 @@ def get_ad_info_text(ad, lang):
 
 
 def build_ad_keyboard(ad, lang):
+    """Standart + maxsus tugmalarni birlashtiradi"""
     rows, row = [], []
 
+    # 1. Standart tugmalar
     for btn_id in ad.get("buttons", []):
         cat = BUTTONS_CATALOG.get(btn_id)
         if not cat:
@@ -377,26 +278,21 @@ def build_ad_keyboard(ad, lang):
             row.append(InlineKeyboardButton(label, url=cat["url"]))
         else:
             cb = (
-                f"phone_{ad['id']}"        if t == "phone"            else
-                f"info_{ad['id']}"         if t == "info"             else
-                f"tuxumai_{ad['id']}"      if t == "tuxumai"          else
-                f"delivery_{ad['id']}"     if t == "delivery"         else
-                f"location_{ad['id']}"     if t == "location_request" else
-                f"order_{ad['id']}"        if t == "order"            else
-                f"msgadmin_{ad['id']}"     if t == "message_admin"    else
+                f"phone_{ad['id']}"    if t == "phone"            else
+                f"info_{ad['id']}"     if t == "info"             else
+                f"tuxumai_{ad['id']}"  if t == "tuxumai"          else
+                f"delivery_{ad['id']}" if t == "delivery"         else
+                f"location_{ad['id']}" if t == "location_request" else
                 f"btn_{ad['id']}_{btn_id}"
             )
             row.append(InlineKeyboardButton(label, callback_data=cb))
         if len(row) == 2:
             rows.append(row); row = []
 
+    # 2. Maxsus tugmalar (admin /button orqali qo'shganlari)
     for cbtn_id, cbtn in custom_buttons.items():
         label = cbtn.get("name", cbtn_id)
-        btn_type = cbtn.get("btn_type", "text")
-        if btn_type == "link":
-            row.append(InlineKeyboardButton(label, url=cbtn.get("action_value", "#")))
-        else:
-            row.append(InlineKeyboardButton(label, callback_data=f"custombtn_{cbtn_id}"))
+        row.append(InlineKeyboardButton(label, callback_data=f"custombtn_{cbtn_id}"))
         if len(row) == 2:
             rows.append(row); row = []
 
@@ -407,12 +303,18 @@ def build_ad_keyboard(ad, lang):
 
 async def send_ad_to_chat(context, chat_id, ad, lang):
     try:
-        await context.bot.send_photo(
+        msg = await context.bot.send_photo(
             chat_id=chat_id,
             photo=ad["photo_file_id"],
             caption=f"{tr('ad_title', lang)}\n\n{get_ad_text(ad, lang)}",
             reply_markup=build_ad_keyboard(ad, lang),
         )
+        # Message_id ni saqlaymiz — keyinchalik o'chirish uchun
+        ad_id = ad["id"]
+        if ad_id not in ad_messages:
+            ad_messages[ad_id] = {}
+        ad_messages[ad_id][str(chat_id)] = msg.message_id
+        save_ad_messages()
     except Exception as e:
         logger.error(f"E'lon yuborishda xato {chat_id}: {e}")
 
@@ -424,6 +326,8 @@ async def send_all_ads(context, chat_id, lang):
     for ad in ads:
         await send_ad_to_chat(context, chat_id, ad, lang)
 
+
+# ─── TTS / STT ───────────────────────────────────────────────────────────────
 
 async def _tts_async(text: str, lang: str, output_path: str):
     voice = TTS_VOICES.get(lang, "en-US-AriaNeural")
@@ -494,44 +398,28 @@ async def send_ai_response(context, chat_id: int, user_id: int, text: str, lang:
     await context.bot.send_message(chat_id=chat_id, text=f"🤖 TuxumAI:\n\n{text}")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# START
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─── /start ──────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid  = user.id
-    lang = get_lang(uid)
+    lang = users.get(str(uid), "uz")
     set_state(uid, "normal")
-
-    is_new = str(uid) not in users
-    if is_new:
-        users[str(uid)] = {"lang": "uz", "name": user.full_name or "", "joined": time.time()}
+    if str(uid) not in users:
+        users[str(uid)] = "uz"
         save_users()
         log_event("join", uid, user.full_name or "")
-        try:
-            await context.bot.send_message(
-                ADMIN_ID,
-                f"🆕 Yangi foydalanuvchi!\n"
-                f"👤 {user.full_name or 'Noma\'lum'}\n"
-                f"🆔 {uid}\n"
-                f"📱 @{user.username or 'username yo\'q'}"
-            )
-        except Exception:
-            pass
-
     await update.message.reply_text(tr("choose_lang", lang), reply_markup=lang_inline_keyboard())
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TIL
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─── Til ─────────────────────────────────────────────────────────────────────
 
 async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     lang_code = query.data.split("_", 1)[1]
-    set_user_info(query.from_user.id, "lang", lang_code)
+    users[str(query.from_user.id)] = lang_code
+    save_users()
     await query.edit_message_text(tr("lang_set", lang_code))
     await context.bot.send_message(query.message.chat_id, tr("lang_set", lang_code), reply_markup=lang_reply_keyboard())
     await send_all_ads(context, query.message.chat_id, lang_code)
@@ -541,844 +429,63 @@ async def lang_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE
     text = update.message.text
     if text in LANG_NAME_TO_CODE:
         lang_code = LANG_NAME_TO_CODE[text]
-        set_user_info(update.effective_user.id, "lang", lang_code)
+        users[str(update.effective_user.id)] = lang_code
+        save_users()
         await update.message.reply_text(tr("lang_set", lang_code), reply_markup=lang_reply_keyboard())
         await send_all_ads(context, update.effective_chat.id, lang_code)
         return True
     return False
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# BUYURTMA TIZIMI
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def order_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    lang = get_lang(q.from_user.id)
-    ad_id = q.data.split("_", 1)[1]
-    context.user_data["order_ad_id"] = ad_id
-    set_state(q.from_user.id, "ordering")
-    await q.answer()
-    await context.bot.send_message(
-        q.message.chat_id,
-        tr("order_ask_qty", lang),
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ Bekor", callback_data="order_cancel")
-        ]])
-    )
-    return ORDER_QTY
-
-
-async def order_qty_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    lang = get_lang(user.id)
-    text = update.message.text.strip()
-    if not text.isdigit() or int(text) <= 0:
-        await update.message.reply_text(tr("invalid_qty", lang))
-        return ORDER_QTY
-    context.user_data["order_qty"] = int(text)
-    await update.message.reply_text(
-        tr("order_ask_address", lang),
-        reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton(tr("location_btn_label", lang), request_location=True)]],
-            resize_keyboard=True, one_time_keyboard=True
-        )
-    )
-    return ORDER_ADDRESS
-
-
-async def order_address_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    lang = get_lang(user.id)
-    if update.message.location:
-        loc = update.message.location
-        context.user_data["order_address"] = f"📍 {loc.latitude}, {loc.longitude}"
-        context.user_data["order_location"] = {"lat": loc.latitude, "lon": loc.longitude}
-    else:
-        context.user_data["order_address"] = update.message.text.strip()
-    await update.message.reply_text(tr("order_ask_phone", lang), reply_markup=lang_reply_keyboard())
-    return ORDER_PHONE
-
-
-async def order_phone_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    lang = get_lang(user.id)
-    phone = update.message.text.strip()
-
-    order_id = f"ORD{int(time.time())}"
-    order = {
-        "id":        order_id,
-        "user_id":   user.id,
-        "user_name": user.full_name or "",
-        "username":  f"@{user.username}" if user.username else f"id:{user.id}",
-        "ad_id":     context.user_data.get("order_ad_id", ""),
-        "qty":       context.user_data.get("order_qty", 0),
-        "address":   context.user_data.get("order_address", ""),
-        "phone":     phone,
-        "status":    "new",
-        "ts":        time.time(),
-    }
-    orders.append(order)
-    save_orders()
-    set_state(user.id, "normal")
-
-    await update.message.reply_text(tr("order_confirm", lang), reply_markup=lang_reply_keyboard())
-
-    status_label = ORDER_STATUSES["new"].get(lang, "🆕 Yangi")
-    try:
-        msg = (
-            f"🛍 <b>Yangi buyurtma!</b> #{order_id}\n\n"
-            f"👤 {user.full_name or 'Noma\'lum'} ({order['username']})\n"
-            f"🆔 {user.id}\n"
-            f"🥚 Miqdor: <b>{order['qty']} ta</b>\n"
-            f"📍 Manzil: {order['address']}\n"
-            f"📞 Telefon: {phone}\n"
-            f"📊 Holat: {status_label}"
-        )
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"ordstatus_confirmed_{order_id}"),
-                InlineKeyboardButton("❌ Bekor", callback_data=f"ordstatus_cancelled_{order_id}"),
-            ],
-            [
-                InlineKeyboardButton("🚚 Yetkazilmoqda", callback_data=f"ordstatus_delivering_{order_id}"),
-                InlineKeyboardButton("✅ Bajarildi", callback_data=f"ordstatus_done_{order_id}"),
-            ],
-        ])
-        await context.bot.send_message(ADMIN_ID, msg, parse_mode="HTML", reply_markup=kb)
-        loc = context.user_data.get("order_location")
-        if loc:
-            await context.bot.send_location(ADMIN_ID, latitude=loc["lat"], longitude=loc["lon"])
-    except Exception as e:
-        logger.warning(f"Adminga buyurtma yuborib bo'lmadi: {e}")
-
-    log_event("new_order", user.id, order_id)
-    context.user_data.clear()
-    return ConversationHandler.END
-
-
-async def order_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    lang = get_lang(q.from_user.id)
-    await q.answer()
-    set_state(q.from_user.id, "normal")
-    context.user_data.clear()
-    await context.bot.send_message(q.message.chat_id, tr("order_cancelled", lang))
-    return ConversationHandler.END
-
-
-async def order_status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    if q.from_user.id != ADMIN_ID:
-        await q.answer("❌ Ruxsat yo'q"); return
-    await q.answer()
-
-    parts    = q.data.split("_", 2)
-    new_stat = parts[1]
-    order_id = parts[2]
-
-    order = next((o for o in orders if o["id"] == order_id), None)
-    if not order:
-        await q.edit_message_text("❌ Buyurtma topilmadi."); return
-
-    old_stat = order["status"]
-    order["status"] = new_stat
-    save_orders()
-
-    status_uz = ORDER_STATUSES.get(new_stat, {}).get("uz", new_stat)
-    await q.edit_message_text(
-        q.message.text + f"\n\n✅ Holat yangilandi: {status_uz}",
-        reply_markup=None
-    )
-
-    user_lang = get_lang(order["user_id"])
-    status_local = ORDER_STATUSES.get(new_stat, {}).get(user_lang, new_stat)
-    try:
-        await context.bot.send_message(
-            order["user_id"],
-            f"📦 Buyurtmangiz holati yangilandi!\n\n"
-            f"🆔 #{order_id}\n"
-            f"📊 Holat: <b>{status_local}</b>",
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        logger.warning(f"Foydalanuvchiga xabar yuborib bo'lmadi: {e}")
-
-    log_event("order_status", ADMIN_ID, f"{order_id}:{old_stat}->{new_stat}")
-
-
-async def my_orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    lang = get_lang(user.id)
-    my = [o for o in orders if o["user_id"] == user.id]
-    if not my:
-        await update.message.reply_text(tr("no_orders", lang))
-        return
-    lines = [tr("order_status", lang)]
-    for o in reversed(my[-10:]):
-        stat = ORDER_STATUSES.get(o["status"], {}).get(lang, o["status"])
-        dt   = datetime.fromtimestamp(o["ts"]).strftime("%d.%m.%Y %H:%M")
-        lines.append(f"\n🆔 #{o['id']}\n🥚 {o['qty']} ta | 📊 {stat}\n📅 {dt}")
-    await update.message.reply_text("\n".join(lines))
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FOYDALANUVCHI ↔ ADMIN XABAR TIZIMI
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def msgadmin_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    lang = get_lang(q.from_user.id)
-    set_state(q.from_user.id, "writing_message")
-    await q.answer()
-    await context.bot.send_message(q.message.chat_id, tr("write_message", lang))
-
-
-async def admin_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    args = context.args
-    if not args or len(args) < 2:
-        await update.message.reply_text("❌ Foydalanish: /reply <user_id> <matn>")
-        return
-    try:
-        target_id  = int(args[0])
-        reply_text = " ".join(args[1:])
-        user_lang  = get_lang(target_id)
-        await context.bot.send_message(
-            target_id,
-            f"{tr('admin_replied', user_lang)}{reply_text}"
-        )
-        await update.message.reply_text(f"✅ Javob {target_id} ga yuborildi.")
-        log_event("admin_reply", ADMIN_ID, f"to:{target_id}")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Xato: {e}")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# BROADCAST
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return ConversationHandler.END
-    await update.message.reply_text(
-        "📢 Barcha foydalanuvchilarga yubormoqchi bo'lgan xabarni yozing:\n\n"
-        "/cancel — bekor qilish"
-    )
-    return BROADCAST_MSG
-
-
-async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return ConversationHandler.END
-    text    = update.message.text
-    sent    = 0
-    failed  = 0
-    for uid_str in list(users.keys()):
-        try:
-            await context.bot.send_message(int(uid_str), f"📢 <b>Yangilik!</b>\n\n{text}", parse_mode="HTML")
-            sent += 1
-        except Exception:
-            failed += 1
-    await update.message.reply_text(f"✅ Yuborildi: {sent} ta\n❌ Yuborilmadi: {failed} ta")
-    log_event("broadcast", ADMIN_ID, f"sent:{sent}")
-    return ConversationHandler.END
-
-
-async def broadcast_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Bekor qilindi.")
-    return ConversationHandler.END
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FOYDALANUVCHILAR RO'YXATI
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def users_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    total = len(users)
-    lines = [f"👥 Jami foydalanuvchilar: <b>{total}</b>\n"]
-    for uid_str, info in list(users.items())[-20:]:
-        if isinstance(info, dict):
-            name = info.get("name", "Noma'lum")
-            lang = info.get("lang", "uz")
-        else:
-            name = "Noma'lum"
-            lang = info
-        lines.append(f"🆔 <code>{uid_str}</code> | {name} | {lang}")
-    lines.append(f"\n<i>(Oxirgi 20 ta ko'rsatildi)</i>")
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# BUYURTMALAR RO'YXATI (admin)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def orders_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not orders:
-        await update.message.reply_text("❌ Hali buyurtma yo'q.")
-        return
-    new_orders = [o for o in orders if o["status"] == "new"]
-    lines = [
-        f"📋 <b>Buyurtmalar</b>",
-        f"Jami: {len(orders)} | 🆕 Yangi: {len(new_orders)}\n"
-    ]
-    for o in reversed(orders[-15:]):
-        stat = ORDER_STATUSES.get(o["status"], {}).get("uz", o["status"])
-        dt   = datetime.fromtimestamp(o["ts"]).strftime("%d.%m %H:%M")
-        lines.append(
-            f"#{o['id'][-6:]} | {o['user_name']} | "
-            f"🥚{o['qty']}ta | {stat} | {dt}"
-        )
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# E'LON QO'SHISH / O'CHIRISH
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def elon_photo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Siz admin emassiz.")
-        return ConversationHandler.END
-    context.user_data.clear()
-    await update.message.reply_text(tr("send_photo", "uz"))
-    return WAIT_PHOTO
-
-
-async def elon_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("❌ Iltimos rasm yuboring.")
-        return WAIT_PHOTO
-    context.user_data["new_ad"] = {
-        "id": str(int(time.time() * 1000)),
-        "photo_file_id": update.message.photo[-1].file_id,
-        "buttons": [],
-        "info_text": "",
-        "views": 0,
-    }
-    await update.message.reply_text(tr("photo_received", "uz"))
-    await update.message.reply_text(tr("write_ad", "uz"))
-    return WAIT_TEXT
-
-
-async def elon_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["new_ad"]["text"] = update.message.text
-    context.user_data["selected_buttons"] = set()
-    await update.message.reply_text(tr("ad_received", "uz"), reply_markup=_btn_sel_kb(set()))
-    return SELECT_BUTTONS
-
-
-def _btn_sel_kb(selected: set):
-    rows, row = [], []
-    for btn_id, info in BUTTONS_CATALOG.items():
-        prefix = "✅ " if btn_id in selected else ""
-        row.append(InlineKeyboardButton(prefix + info["label"]["uz"], callback_data=f"selbtn_{btn_id}"))
-        if len(row) == 2:
-            rows.append(row); row = []
-    for cbtn_id, cbtn in custom_buttons.items():
-        prefix = "✅ " if cbtn_id in selected else ""
-        row.append(InlineKeyboardButton(prefix + cbtn["name"], callback_data=f"selbtn_c_{cbtn_id}"))
-        if len(row) == 2:
-            rows.append(row); row = []
-    if row:
-        rows.append(row)
-    rows.append([InlineKeyboardButton("✅ Tayyor", callback_data="selbtn_done")])
-    return InlineKeyboardMarkup(rows)
-
-
-async def select_buttons_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    if q.from_user.id != ADMIN_ID:
-        await q.answer(); return SELECT_BUTTONS
-    data = q.data[len("selbtn_"):]
-    selected = context.user_data.get("selected_buttons", set())
-    if data == "done":
-        await q.answer()
-        new_ad = context.user_data["new_ad"]
-        new_ad["buttons"] = list(selected)
-        if "info" in selected:
-            await q.edit_message_text(tr("ad_received", "uz"))
-            await context.bot.send_message(q.message.chat_id, tr("write_info", "uz"))
-            return WAIT_INFO
-        ads.append(new_ad); save_ads()
-        await q.edit_message_text(tr("ad_done_no_info", "uz"))
-        await broadcast_new_ad(context, new_ad)
-        log_event("new_ad", ADMIN_ID, new_ad["id"])
-        return ConversationHandler.END
-    selected.discard(data) if data in selected else selected.add(data)
-    context.user_data["selected_buttons"] = selected
-    await q.answer()
-    await q.edit_message_reply_markup(reply_markup=_btn_sel_kb(selected))
-    return SELECT_BUTTONS
-
-
-async def info_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    new_ad = context.user_data["new_ad"]
-    new_ad["info_text"] = update.message.text
-    ads.append(new_ad); save_ads()
-    await update.message.reply_text(tr("info_received", "uz"))
-    await broadcast_new_ad(context, new_ad)
-    log_event("new_ad", ADMIN_ID, new_ad["id"])
-    return ConversationHandler.END
-
-
-async def cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-    await update.message.reply_text("Bekor qilindi.")
-    return ConversationHandler.END
-
-
-async def broadcast_new_ad(context, ad):
-    for uid_str, info in users.items():
-        lang = info.get("lang", "uz") if isinstance(info, dict) else info
-        try:
-            await send_ad_to_chat(context, int(uid_str), ad, lang)
-        except Exception as e:
-            logger.warning(f"{uid_str} ga yuborib bo'lmadi: {e}")
-    if CHANNEL_ID:
-        try:
-            await send_ad_to_chat(context, CHANNEL_ID, ad, "uz")
-        except Exception as e:
-            logger.warning(f"Kanalga yuborib bo'lmadi: {e}")
-
-
-async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not ads:
-        await update.message.reply_text("❌ O'chirish uchun e'lonlar yo'q.")
-        return
-    rows = []
-    for ad in ads:
-        short = ad.get("text", "")[:40] + ("..." if len(ad.get("text", "")) > 40 else "")
-        rows.append([InlineKeyboardButton(f"🗑 {short}", callback_data=f"deladconfirm_{ad['id']}")])
-    rows.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="deladcancel")])
-    await update.message.reply_text("🗑 Qaysi e'lonni o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(rows))
-
-
-async def delete_ad_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    if q.from_user.id != ADMIN_ID:
-        await q.answer(); return
-    ad_id = q.data.split("_", 1)[1]
-    ad = next((a for a in ads if a["id"] == ad_id), None)
-    if not ad:
-        await q.answer(); await q.edit_message_text("❌ E'lon topilmadi."); return
-    short = ad.get("text", "")[:60] + ("..." if len(ad.get("text", "")) > 60 else "")
-    await q.answer()
-    await q.edit_message_text(
-        f"⚠️ Tasdiqlaysizmi?\n\n📝 {short}",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Ha, o'chir", callback_data=f"deladyes_{ad_id}"),
-            InlineKeyboardButton("❌ Yo'q", callback_data="deladcancel"),
-        ]])
-    )
-
-
-async def delete_ad_yes_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    if q.from_user.id != ADMIN_ID:
-        await q.answer(); return
-    global ads
-    ad_id = q.data.split("_", 1)[1]
-    deleted_ad = next((a for a in ads if a["id"] == ad_id), None)
-
-    if not deleted_ad:
-        await q.answer()
-        await q.edit_message_text("❌ E'lon topilmadi.")
-        return
-
-    ads = [a for a in ads if a["id"] != ad_id]
-
-    # Atomic write — Railway restart da yo'qolmasin
-    try:
-        save_ads()
-        logger.info(f"E'lon o'chirildi: {ad_id}, qolgan: {len(ads)}")
-    except Exception as e:
-        logger.error(f"Saqlashda xato: {e}")
-        await q.answer()
-        await q.edit_message_text(f"❌ Saqlashda xato: {e}")
-        return
-
-    await q.answer()
-    await q.edit_message_text("✅ E'lon muvaffaqiyatli o'chirildi.")
-
-    notify = f"🗑 E'lon o'chirildi:\n\n{deleted_ad.get('text','')[:60]}"
-    for uid_str in list(users.keys()):
-        try:
-            await context.bot.send_message(int(uid_str), notify)
-        except Exception as e:
-            logger.warning(f"{uid_str} ga xabar yuborib bo'lmadi: {e}")
-
-    log_event("delete_ad", ADMIN_ID, ad_id)
-
-
-async def delete_ad_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query; await q.answer()
-    await q.edit_message_text("❌ O'chirish bekor qilindi.")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TUGMA YARATISH / O'CHIRISH  ← TO'LIQ TUZATILGAN
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _btn_type_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔗 Link (URL)",    callback_data="btntype_link")],
-        [InlineKeyboardButton("📝 Matn (xabar)",  callback_data="btntype_text")],
-        [InlineKeyboardButton("📞 Telefon raqam", callback_data="btntype_phone")],
-        [InlineKeyboardButton("❌ Bekor",          callback_data="btntype_cancel")],
-    ])
-
-
-async def button_create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return ConversationHandler.END
-    context.user_data.clear()
-    await update.message.reply_text(
-        "🔘 Yangi tugma yaratish\n\n1️⃣ Tugma nomini yozing:\n(masalan: 📸 Instagram)"
-    )
-    return BTN_NAME
-
-
-async def button_create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["new_btn_name"] = update.message.text.strip()
-    await update.message.reply_text(
-        f"✅ Nom: <b>{context.user_data['new_btn_name']}</b>\n\n2️⃣ Tugma turini tanlang:",
-        parse_mode="HTML",
-        reply_markup=_btn_type_kb(),
-    )
-    return BTN_TYPE
-
-
-async def button_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    if q.data == "btntype_cancel":
-        context.user_data.clear()
-        await q.edit_message_text("❌ Bekor qilindi.")
-        return ConversationHandler.END
-    chosen = q.data.split("_", 1)[1]
-    context.user_data["new_btn_type"] = chosen
-    prompts = {
-        "link":  "3️⃣ Link (URL) yozing:\n\nMasalan: https://instagram.com/...",
-        "text":  "3️⃣ Tugma bosilganda ko'rsatiladigan matnni yozing:",
-        "phone": "3️⃣ Telefon raqamini yozing:\n\nMasalan: +998901234567",
-    }
-    await q.edit_message_text(prompts[chosen], parse_mode="HTML")
-    return BTN_VALUE
-
-
-async def button_create_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    btn_name  = context.user_data.get("new_btn_name", "Tugma")
-    btn_type  = context.user_data.get("new_btn_type", "text")
-    btn_value = update.message.text.strip()
-    if btn_type == "link" and not (btn_value.startswith("http://") or btn_value.startswith("https://")):
-        await update.message.reply_text("❌ Link https:// bilan boshlanishi kerak!\n\nQaytadan yozing:")
-        return BTN_VALUE
-    btn_id = f"cb_{int(time.time())}"
-    custom_buttons[btn_id] = {"name": btn_name, "btn_type": btn_type, "action_value": btn_value}
-    save_custom_buttons()
-    type_labels = {"link": "🔗 Link", "text": "📝 Matn", "phone": "📞 Telefon"}
-    await update.message.reply_text(
-        f"✅ Tugma yaratildi!\n\n🔘 Nom: <b>{btn_name}</b>\n"
-        f"📌 Tur: {type_labels.get(btn_type, btn_type)}\n"
-        f"📋 Qiymat: {btn_value[:80]}\n\nBu tugma endi barcha e'lonlarda ko'rinadi.",
-        parse_mode="HTML",
-    )
-    log_event("new_button", ADMIN_ID, btn_name)
-    return ConversationHandler.END
-
-
-async def button_create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-    await update.message.reply_text("❌ Bekor qilindi.")
-    return ConversationHandler.END
-
-
-async def button_delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    TUZATILGAN: ikkala BUTTONS_CATALOG va custom_buttons ni ko'rsatadi.
-    BUTTONS_CATALOG tugmalari barcha e'lonlardan olib tashlanadi.
-    custom_buttons tugmalari butunlay o'chiriladi.
-    """
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    rows = []
-
-    # 1) E'lon tugmalari (BUTTONS_CATALOG) — qaysilari ishlatilayotganini topamiz
-    used_catalog_btns = set()
-    for ad in ads:
-        for btn_id in ad.get("buttons", []):
-            if btn_id in BUTTONS_CATALOG:
-                used_catalog_btns.add(btn_id)
-
-    if used_catalog_btns:
-        rows.append([InlineKeyboardButton("─── E'lon tugmalari ───", callback_data="delbtn_noop")])
-        for btn_id in used_catalog_btns:
-            cat = BUTTONS_CATALOG[btn_id]
-            label = cat["label"]["uz"]
-            rows.append([InlineKeyboardButton(f"🗑 {label}", callback_data=f"delbtncat_{btn_id}")])
-
-    # 2) Maxsus (custom) tugmalar
-    if custom_buttons:
-        rows.append([InlineKeyboardButton("─── Maxsus tugmalar ───", callback_data="delbtn_noop")])
-        for btn_id, btn in custom_buttons.items():
-            type_icon = {"link": "🔗", "text": "📝", "phone": "📞"}.get(btn.get("btn_type", "text"), "📝")
-            rows.append([InlineKeyboardButton(f"🗑 {type_icon} {btn['name']}", callback_data=f"delbtn_{btn_id}")])
-
-    if not rows:
-        await update.message.reply_text("❌ Hech qanday tugma yo'q.")
-        return
-
-    rows.append([InlineKeyboardButton("❌ Bekor", callback_data="delbtncancel")])
-    await update.message.reply_text(
-        "🗑 Qaysi tugmani o'chirmoqchisiz?\n\n"
-        "<i>• E'lon tugmalari — barcha e'lonlardan olib tashlanadi\n"
-        "• Maxsus tugmalar — butunlay o'chiriladi</i>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(rows)
-    )
-
-
-async def button_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """TUZATILGAN: catalog va custom tugmalarni to'g'ri o'chiradi"""
-    q = update.callback_query
-    if q.from_user.id != ADMIN_ID:
-        await q.answer(); return
-
-    # Bekor
-    if q.data == "delbtncancel":
-        await q.answer()
-        await q.edit_message_text("❌ Bekor qilindi.")
-        return
-
-    # Separator tugma — hech narsa qilmaymiz
-    if q.data == "delbtn_noop":
-        await q.answer()
-        return
-
-    # BUTTONS_CATALOG tugmasini barcha e'lonlardan olib tashlash
-    if q.data.startswith("delbtncat_"):
-        btn_id = q.data[len("delbtncat_"):]
-        cat = BUTTONS_CATALOG.get(btn_id)
-        if not cat:
-            await q.answer("❌ Tugma topilmadi.")
-            return
-        count = 0
-        for ad in ads:
-            if btn_id in ad.get("buttons", []):
-                ad["buttons"].remove(btn_id)
-                count += 1
-        save_ads()
-        await q.answer()
-        label = cat["label"]["uz"]
-        await q.edit_message_text(
-            f"✅ <b>{label}</b> tugmasi {count} ta e'londan olib tashlandi.",
-            parse_mode="HTML"
-        )
-        log_event("delete_button", ADMIN_ID, f"catalog:{btn_id}:{count}ta")
-        return
-
-    # Custom tugmani o'chirish
-    btn_id = q.data[len("delbtn_"):]
-    btn = custom_buttons.pop(btn_id, None)
-    save_custom_buttons()
-    await q.answer()
-    if btn:
-        await q.edit_message_text(f"✅ '{btn['name']}' tugmasi o'chirildi.")
-        log_event("delete_button", ADMIN_ID, btn["name"])
-    else:
-        await q.edit_message_text("❌ Tugma topilmadi.")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# BUYRUQ YARATISH
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def cmd_create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return ConversationHandler.END
-    context.user_data.clear()
-    await update.message.reply_text(
-        "⚙️ Juft buyruq yaratish\n\n"
-        "1️⃣ Birinchi buyruq nomini yozing (/ belgisiz):\n<i>Masalan: narx</i>",
-        parse_mode="HTML",
-    )
-    return CMD_NAME1
-
-
-async def cmd_create_name1(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    name = update.message.text.strip().lstrip("/").replace(" ", "_").lower()
-    context.user_data["cmd1_name"] = name
-    await update.message.reply_text(
-        f"✅ Birinchi buyruq: <b>/{name}</b>\n\n2️⃣ /{name} bosilganda qanday javob?",
-        parse_mode="HTML",
-    )
-    return CMD_RESP1
-
-
-async def cmd_create_resp1(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["cmd1_resp"] = update.message.text.strip()
-    name1 = context.user_data["cmd1_name"]
-    await update.message.reply_text(
-        f"✅ Birinchi buyruq saqlandi!\n\n3️⃣ Ikkinchi buyruq nomini yozing:\n<i>Masalan: {name1}_batafsil</i>",
-        parse_mode="HTML",
-    )
-    return CMD_NAME2
-
-
-async def cmd_create_name2(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    name = update.message.text.strip().lstrip("/").replace(" ", "_").lower()
-    context.user_data["cmd2_name"] = name
-    await update.message.reply_text(
-        f"✅ Ikkinchi buyruq: <b>/{name}</b>\n\n4️⃣ /{name} bosilganda qanday javob?",
-        parse_mode="HTML",
-    )
-    return CMD_RESP2
-
-
-async def cmd_create_resp2(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cmd1_name = context.user_data.get("cmd1_name", "cmd1")
-    cmd1_resp = context.user_data.get("cmd1_resp", "")
-    cmd2_name = context.user_data.get("cmd2_name", "cmd2")
-    cmd2_resp = update.message.text.strip()
-    custom_commands[cmd1_name] = {"response_text": cmd1_resp}
-    custom_commands[cmd2_name] = {"response_text": cmd2_resp}
-    save_custom_commands()
-    await update.message.reply_text(
-        f"✅ Ikkala buyruq yaratildi!\n\n"
-        f"📌 <b>/{cmd1_name}</b>\n{cmd1_resp[:80]}\n\n"
-        f"📌 <b>/{cmd2_name}</b>\n{cmd2_resp[:80]}",
-        parse_mode="HTML",
-    )
-    log_event("new_command", ADMIN_ID, f"{cmd1_name}+{cmd2_name}")
-    return ConversationHandler.END
-
-
-async def cmd_create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-    await update.message.reply_text("❌ Bekor qilindi.")
-    return ConversationHandler.END
-
-
-async def cmd_delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not custom_commands:
-        await update.message.reply_text("❌ Hech qanday maxsus buyruq yo'q.")
-        return
-    rows = []
-    for cname in custom_commands:
-        rows.append([InlineKeyboardButton(f"🗑 /{cname}", callback_data=f"delcmd_{cname}")])
-    rows.append([InlineKeyboardButton("❌ Bekor", callback_data="delcmdcancel")])
-    await update.message.reply_text("🗑 Qaysi buyruqni o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(rows))
-
-
-async def cmd_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    if q.from_user.id != ADMIN_ID:
-        await q.answer(); return
-    if q.data == "delcmdcancel":
-        await q.answer(); await q.edit_message_text("❌ Bekor qilindi."); return
-    cname = q.data.split("_", 1)[1]
-    custom_commands.pop(cname, None)
-    save_custom_commands()
-    await q.answer()
-    await q.edit_message_text(f"✅ /{cname} buyrug'i o'chirildi.")
-    log_event("delete_command", ADMIN_ID, cname)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FAOLLIK JADVALI
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def faollik_jadvali(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    now        = time.time()
-    total      = len(users)
-    cutoff_24h = now - 86400
-
-    new_24h    = sum(1 for e in events if e["type"] == "join" and e["ts"] > cutoff_24h)
-    active_ids = {e["user_id"] for e in events if e["ts"] > cutoff_24h and e["type"] in ("message", "join")}
-    active     = len(active_ids)
-    inactive   = total - active
-
-    total_orders   = len(orders)
-    new_orders_cnt = sum(1 for o in orders if o["status"] == "new")
-    done_orders    = sum(1 for o in orders if o["status"] == "done")
-
-    hourly = {}
-    for i in range(24):
-        t0    = now - (24 - i) * 3600
-        t1    = t0 + 3600
-        label = datetime.fromtimestamp(t0).strftime("%H:00")
-        count = sum(1 for e in events if t0 <= e["ts"] < t1)
-        hourly[label] = count
-
-    lines = [
-        "📊 <b>Faollik jadvali (oxirgi 24 soat)</b>",
-        "",
-        f"👥 Jami foydalanuvchilar: <b>{total}</b>",
-        f"🟢 Faol (24h): <b>{active}</b>",
-        f"🔴 Faol emas (24h): <b>{inactive}</b>",
-        f"🆕 Yangi a'zolar (24h): <b>{new_24h}</b>",
-        "",
-        f"🛍 Jami buyurtmalar: <b>{total_orders}</b>",
-        f"🆕 Yangi buyurtmalar: <b>{new_orders_cnt}</b>",
-        f"✅ Bajarilgan: <b>{done_orders}</b>",
-        "",
-        "⏰ Soatlik faollik:",
-        "─" * 28,
-    ]
-    mx = max(hourly.values(), default=1) or 1
-    for lbl, cnt in hourly.items():
-        bar = "█" * int(cnt / mx * 14) + "░" * (14 - int(cnt / mx * 14))
-        lines.append(f"<code>{lbl} {bar} {cnt}</code>")
-
-    ev_24h = [e for e in events if e["ts"] > cutoff_24h]
-    type_counts: dict = {}
-    for e in ev_24h:
-        type_counts[e["type"]] = type_counts.get(e["type"], 0) + 1
-
-    emoji_map = {
-        "join":           "🆕 Yangi a'zo",
-        "message":        "✉️ Xabarlar",
-        "new_ad":         "📢 Yangi e'lonlar",
-        "delete_ad":      "🗑 O'chirilgan e'lonlar",
-        "admin_reply":    "💬 Admin javoblari",
-        "new_button":     "🔘 Yangi tugmalar",
-        "delete_button":  "🗑 O'chirilgan tugmalar",
-        "new_command":    "⚙️ Yangi buyruqlar",
-        "delete_command": "🗑 O'chirilgan buyruqlar",
-        "new_order":      "🛍 Yangi buyurtmalar",
-        "order_status":   "📦 Holat o'zgarishi",
-        "broadcast":      "📢 Broadcast",
-    }
-    lines += ["", "📋 Voqealar (24h):"]
-    if type_counts:
-        for etype, cnt in type_counts.items():
-            lines.append(f"  {emoji_map.get(etype, etype)}: <b>{cnt}</b>")
-    else:
-        lines.append("  Hozircha voqealar yo'q.")
-
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# CALLBACK HANDLERLARI
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─── Standart tugma callbacklari ─────────────────────────────────────────────
 
 async def phone_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query; await q.answer()
-    await context.bot.send_message(q.message.chat_id, f"{tr('calling', get_lang(q.from_user.id))}{PHONE_NUMBER}")
+    """📞 Tugmasi bosildi — foydalanuvchidan raqam so'raladi"""
+    q    = update.callback_query
+    lang = get_lang(q.from_user.id)
+    ad_id = q.data.split("_", 1)[1]
+    phone_waiting[str(q.from_user.id)] = ad_id
+    await q.answer()
+    await context.bot.send_message(q.message.chat_id, tr("ask_phone", lang))
+
+
+async def phone_number_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanuvchi telefon raqamini yozdi"""
+    user = update.effective_user
+    lang = get_lang(user.id)
+
+    # Faqat phone_waiting holatidagi foydalanuvchilar
+    if str(user.id) not in phone_waiting:
+        return False   # bu handler emas, keyingisiga o'tsin
+
+    text = (update.message.text or "").strip()
+    # Oddiy tekshirish: raqam bo'lishi kerak
+    digits = text.replace("+", "").replace(" ", "").replace("-", "")
+    if not digits.isdigit() or len(digits) < 9:
+        await update.message.reply_text(tr("phone_invalid", lang))
+        return True
+
+    ad_id = phone_waiting.pop(str(user.id))
+    username = f"@{user.username}" if user.username else f"id:{user.id}"
+
+    # Adminga xabar
+    try:
+        await context.bot.send_message(
+            ADMIN_ID,
+            f"📞 <b>Buyurtma / Qo'ng'iroq so'rovi</b>\n"
+            f"👤 {user.full_name or ''} ({username})\n"
+            f"🆔 <code>{user.id}</code>\n"
+            f"📱 Raqam: <b>{text}</b>\n"
+            f"🏷 E'lon ID: {ad_id}\n\n"
+            f"↩️ Javob: /reply {user.id} &lt;matn&gt;",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.warning(f"Adminga telefon raqami yuborib bo'lmadi: {e}")
+
+    await update.message.reply_text(tr("phone_sent_user", lang))
+    log_event("phone_order", user.id, text)
+    return True
 
 
 async def info_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1435,36 +542,20 @@ async def text_button_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def custom_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maxsus (admin qo'shgan) tugma bosildi"""
     q = update.callback_query
     await q.answer()
     cbtn_id = q.data.split("_", 1)[1]
     cbtn = custom_buttons.get(cbtn_id)
-    if not cbtn:
-        return
-    btn_type = cbtn.get("btn_type", "text")
-    if btn_type == "phone":
-        await context.bot.send_message(q.message.chat_id, f"📞 Telefon: {cbtn.get('action_value', '')}")
-    else:
+    if cbtn:
         await context.bot.send_message(q.message.chat_id, cbtn.get("action_value", ""))
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# LOCATION VA VOICE HANDLERLARI
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─── Joylashuv ───────────────────────────────────────────────────────────────
 
 async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user  = update.effective_user
     lang  = get_lang(user.id)
-
-    if get_state(user.id) == "ordering":
-        context.user_data["order_address"] = f"📍 {update.message.location.latitude}, {update.message.location.longitude}"
-        context.user_data["order_location"] = {
-            "lat": update.message.location.latitude,
-            "lon": update.message.location.longitude
-        }
-        await update.message.reply_text(tr("order_ask_phone", lang), reply_markup=lang_reply_keyboard())
-        return ORDER_PHONE
-
     loc   = update.message.location
     ad_id = context.user_data.pop("awaiting_location_for_ad", "nomalum")
     username = f"@{user.username}" if user.username else f"id:{user.id}"
@@ -1481,6 +572,8 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"Adminga joylashuv yuborib bo'lmadi: {e}")
     await update.message.reply_text(tr("location_sent", lang), reply_markup=lang_reply_keyboard())
 
+
+# ─── Ovoz ────────────────────────────────────────────────────────────────────
 
 async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -1503,9 +596,435 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await send_ai_response(context, update.effective_chat.id, user.id, reply, lang)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# UMUMIY XABAR HANDLER
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─── /delete — e'lonni o'chirish ─────────────────────────────────────────────
+
+async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if not ads:
+        await update.message.reply_text("❌ O'chirish uchun e'lonlar yo'q.")
+        return
+    rows = []
+    for ad in ads:
+        short = ad.get("text", "")[:40] + ("..." if len(ad.get("text", "")) > 40 else "")
+        rows.append([InlineKeyboardButton(f"🗑 {short}", callback_data=f"deladconfirm_{ad['id']}")])
+    rows.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="deladcancel")])
+    await update.message.reply_text("🗑 Qaysi e'lonni o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(rows))
+
+
+async def delete_ad_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if q.from_user.id != ADMIN_ID:
+        await q.answer(); return
+    ad_id = q.data.split("_", 1)[1]
+    ad = next((a for a in ads if a["id"] == ad_id), None)
+    if not ad:
+        await q.answer(); await q.edit_message_text("❌ E'lon topilmadi."); return
+    short = ad.get("text", "")[:60] + ("..." if len(ad.get("text", "")) > 60 else "")
+    await q.answer()
+    await q.edit_message_text(
+        f"⚠️ Tasdiqlaysizmi?\n\n📝 {short}",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Ha, o'chir", callback_data=f"deladyes_{ad_id}"),
+            InlineKeyboardButton("❌ Yo'q",       callback_data="deladcancel"),
+        ]])
+    )
+
+
+async def delete_ad_yes_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """E'lon o'chiriladi + barcha foydalanuvchilardagi o'sha xabar ham o'chiriladi"""
+    q = update.callback_query
+    if q.from_user.id != ADMIN_ID:
+        await q.answer(); return
+    global ads
+    ad_id = q.data.split("_", 1)[1]
+    deleted_ad = next((a for a in ads if a["id"] == ad_id), None)
+    before = len(ads)
+    ads = [a for a in ads if a["id"] != ad_id]
+    await q.answer()
+    if len(ads) != before:
+        save_ads()
+        await q.edit_message_text("✅ E'lon o'chirilmoqda...")
+
+        # Har bir foydalanuvchidagi e'lon xabarini o'chirish
+        msgs = ad_messages.pop(ad_id, {})
+        deleted_count = 0
+        failed_count  = 0
+        for chat_id_str, msg_id in msgs.items():
+            try:
+                await context.bot.delete_message(chat_id=int(chat_id_str), message_id=msg_id)
+                deleted_count += 1
+            except Exception as e:
+                logger.warning(f"{chat_id_str} dan xabar o'chirib bo'lmadi: {e}")
+                failed_count += 1
+        save_ad_messages()
+
+        result_text = (
+            f"✅ E'lon muvaffaqiyatli o'chirildi.\n\n"
+            f"🗑 O'chirilgan xabarlar: {deleted_count} ta"
+        )
+        if failed_count:
+            result_text += f"\n⚠️ O'chirib bo'lmadi: {failed_count} ta (eski yoki bot chiqarilgan)"
+        await q.edit_message_text(result_text)
+        log_event("delete_ad", ADMIN_ID, ad_id)
+    else:
+        await q.edit_message_text("❌ E'lon topilmadi.")
+
+
+async def delete_ad_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query; await q.answer()
+    await q.edit_message_text("❌ O'chirish bekor qilindi.")
+
+
+# ─── E'lon qo'shish (ConversationHandler) ────────────────────────────────────
+
+async def elon_photo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Siz admin emassiz.")
+        return ConversationHandler.END
+    context.user_data.clear()
+    await update.message.reply_text(tr("send_photo", "uz"))
+    return WAIT_PHOTO
+
+
+async def elon_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.photo:
+        await update.message.reply_text("❌ Iltimos rasm yuboring.")
+        return WAIT_PHOTO
+    context.user_data["new_ad"] = {
+        "id": str(int(time.time() * 1000)),
+        "photo_file_id": update.message.photo[-1].file_id,
+        "buttons": [],
+        "info_text": "",
+    }
+    await update.message.reply_text(tr("photo_received", "uz"))
+    await update.message.reply_text(tr("write_ad", "uz"))
+    return WAIT_TEXT
+
+
+async def elon_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["new_ad"]["text"] = update.message.text
+    context.user_data["selected_buttons"] = set()
+    await update.message.reply_text(tr("ad_received", "uz"), reply_markup=_btn_sel_kb(set()))
+    return SELECT_BUTTONS
+
+
+def _btn_sel_kb(selected: set):
+    """Standart + custom tugmalarni tanlash klaviaturasi"""
+    rows, row = [], []
+    # Standart tugmalar
+    for btn_id, info in BUTTONS_CATALOG.items():
+        prefix = "✅ " if btn_id in selected else ""
+        row.append(InlineKeyboardButton(prefix + info["label"]["uz"], callback_data=f"selbtn_{btn_id}"))
+        if len(row) == 2:
+            rows.append(row); row = []
+    # Maxsus tugmalar
+    for cbtn_id, cbtn in custom_buttons.items():
+        prefix = "✅ " if cbtn_id in selected else ""
+        row.append(InlineKeyboardButton(prefix + cbtn["name"], callback_data=f"selbtn_c_{cbtn_id}"))
+        if len(row) == 2:
+            rows.append(row); row = []
+    if row:
+        rows.append(row)
+    rows.append([InlineKeyboardButton("✅ Tayyor", callback_data="selbtn_done")])
+    return InlineKeyboardMarkup(rows)
+
+
+async def select_buttons_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if q.from_user.id != ADMIN_ID:
+        await q.answer(); return SELECT_BUTTONS
+    data = q.data[len("selbtn_"):]   # "selbtn_" dan keying qismi
+    selected = context.user_data.get("selected_buttons", set())
+    if data == "done":
+        await q.answer()
+        new_ad = context.user_data["new_ad"]
+        new_ad["buttons"] = list(selected)
+        if "info" in selected:
+            await q.edit_message_text(tr("ad_received", "uz"))
+            await context.bot.send_message(q.message.chat_id, tr("write_info", "uz"))
+            return WAIT_INFO
+        ads.append(new_ad); save_ads()
+        await q.edit_message_text(tr("ad_done_no_info", "uz"))
+        await broadcast_new_ad(context, new_ad)
+        log_event("new_ad", ADMIN_ID, new_ad["id"])
+        return ConversationHandler.END
+    selected.discard(data) if data in selected else selected.add(data)
+    context.user_data["selected_buttons"] = selected
+    await q.answer()
+    await q.edit_message_reply_markup(reply_markup=_btn_sel_kb(selected))
+    return SELECT_BUTTONS
+
+
+async def info_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    new_ad = context.user_data["new_ad"]
+    new_ad["info_text"] = update.message.text
+    ads.append(new_ad); save_ads()
+    await update.message.reply_text(tr("info_received", "uz"))
+    await broadcast_new_ad(context, new_ad)
+    log_event("new_ad", ADMIN_ID, new_ad["id"])
+    return ConversationHandler.END
+
+
+async def cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    await update.message.reply_text("Bekor qilindi.")
+    return ConversationHandler.END
+
+
+async def broadcast_new_ad(context, ad):
+    for uid_str, lang in users.items():
+        try:
+            await send_ad_to_chat(context, int(uid_str), ad, lang)
+        except Exception as e:
+            logger.warning(f"{uid_str} ga yuborib bo'lmadi: {e}")
+    if CHANNEL_ID:
+        try:
+            await send_ad_to_chat(context, CHANNEL_ID, ad, "uz")
+        except Exception as e:
+            logger.warning(f"Kanalga yuborib bo'lmadi: {e}")
+
+
+# ─── /reply — foydalanuvchi yozsa adminга AUTO keladi ────────────────────────
+# Bu logika generic_message_handler ichida — hech narsa bosmasdan avtomatik.
+# /reply <id> <matn> usuli ham saqlanadi.
+
+async def admin_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args
+    if not args or len(args) < 2:
+        await update.message.reply_text("❌ Foydalanish: /reply <user_id> <matn>")
+        return
+    try:
+        target_id  = int(args[0])
+        reply_text = " ".join(args[1:])
+        await context.bot.send_message(target_id, f"💬 Admin javobi:\n\n{reply_text}")
+        await update.message.reply_text(f"✅ Javob {target_id} ga yuborildi.")
+        log_event("admin_reply", ADMIN_ID, f"to:{target_id}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xato: {e}")
+
+
+# ─── /button — maxsus tugma yaratish (2 qadam: nom + amal) ──────────────────
+
+async def button_create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return ConversationHandler.END
+    await update.message.reply_text(
+        "🔘 Yangi tugma yaratish\n\n"
+        "Tugma nomini yozing:\n"
+        "(masalan: 💬 Savollar, 📦 Mahsulotlar, 🎁 Aksiya)"
+    )
+    return BTN_NAME
+
+
+async def button_create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["new_btn_name"] = update.message.text.strip()
+    await update.message.reply_text(
+        f"✅ Nom: {context.user_data['new_btn_name']}\n\n"
+        "Endi tugma bosilganda ko'rsatiladigan matnni yozing\n"
+        "(istalgan matn, link, narx — xohlagan narsani):"
+    )
+    return BTN_ACTION_VALUE
+
+
+async def button_create_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    btn_name  = context.user_data.get("new_btn_name", "Tugma")
+    btn_value = update.message.text.strip()
+    btn_id    = f"cb_{int(time.time())}"
+    custom_buttons[btn_id] = {
+        "name":         btn_name,
+        "action_value": btn_value,
+    }
+    save_custom_buttons()
+    await update.message.reply_text(
+        f"✅ Tugma yaratildi!\n\n"
+        f"🔘 Nom: {btn_name}\n"
+        f"📋 Amal: {btn_value[:100]}\n\n"
+        f"Bu tugma endi barcha e'lonlarda ko'rinadi va tanlanishi mumkin."
+    )
+    log_event("new_button", ADMIN_ID, btn_name)
+    return ConversationHandler.END
+
+
+async def button_create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    await update.message.reply_text("❌ Bekor qilindi.")
+    return ConversationHandler.END
+
+
+# ─── /deletebtn — maxsus tugmani o'chirish ───────────────────────────────────
+
+async def button_delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if not custom_buttons:
+        await update.message.reply_text("❌ Hech qanday maxsus tugma yo'q.")
+        return
+    rows = []
+    for btn_id, btn in custom_buttons.items():
+        rows.append([InlineKeyboardButton(f"🗑 {btn['name']}", callback_data=f"delbtn_{btn_id}")])
+    rows.append([InlineKeyboardButton("❌ Bekor", callback_data="delbtncancel")])
+    await update.message.reply_text("🗑 Qaysi tugmani o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(rows))
+
+
+async def button_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if q.from_user.id != ADMIN_ID:
+        await q.answer(); return
+    if q.data == "delbtncancel":
+        await q.answer(); await q.edit_message_text("❌ Bekor qilindi."); return
+    btn_id = q.data.split("_", 1)[1]
+    btn    = custom_buttons.pop(btn_id, None)
+    save_custom_buttons()
+    await q.answer()
+    if btn:
+        await q.edit_message_text(f"✅ '{btn['name']}' tugmasi o'chirildi.")
+        log_event("delete_button", ADMIN_ID, btn["name"])
+    else:
+        await q.edit_message_text("❌ Tugma topilmadi.")
+
+
+# ─── /cmd — maxsus buyruq yaratish (2 qadam: nom + javob matni) ──────────────
+
+async def cmd_create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return ConversationHandler.END
+    await update.message.reply_text(
+        "⚙️ Yangi buyruq yaratish\n\n"
+        "Buyruq nomini yozing (/ belgisiz):\n"
+        "(masalan: narx  →  /narx buyrug'i yaratiladi)"
+    )
+    return CMD_NAME
+
+
+async def cmd_create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    name = update.message.text.strip().lstrip("/").replace(" ", "_").lower()
+    context.user_data["new_cmd_name"] = name
+    await update.message.reply_text(
+        f"✅ Buyruq: /{name}\n\n"
+        "Endi /{name} bosilganda qanday javob ko'rsatilsin?\n"
+        "(istalgan matn, narx, ma'lumot — xohlagan narsani yozing):"
+    )
+    return CMD_RESPONSE
+
+
+async def cmd_create_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cmd_name = context.user_data.get("new_cmd_name", "cmd")
+    cmd_resp = update.message.text.strip()
+    custom_commands[cmd_name] = {"response_text": cmd_resp}
+    save_custom_commands()
+    await update.message.reply_text(
+        f"✅ Buyruq yaratildi!\n\n"
+        f"📌 /{cmd_name} — endi ishlaydi\n\n"
+        f"Javob matni:\n{cmd_resp}"
+    )
+    log_event("new_command", ADMIN_ID, cmd_name)
+    return ConversationHandler.END
+
+
+async def cmd_create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    await update.message.reply_text("❌ Bekor qilindi.")
+    return ConversationHandler.END
+
+
+# ─── /deletecmd — maxsus buyruqni o'chirish ──────────────────────────────────
+
+async def cmd_delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if not custom_commands:
+        await update.message.reply_text("❌ Hech qanday maxsus buyruq yo'q.")
+        return
+    rows = []
+    for cname in custom_commands:
+        rows.append([InlineKeyboardButton(f"🗑 /{cname}", callback_data=f"delcmd_{cname}")])
+    rows.append([InlineKeyboardButton("❌ Bekor", callback_data="delcmdcancel")])
+    await update.message.reply_text("🗑 Qaysi buyruqni o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(rows))
+
+
+async def cmd_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if q.from_user.id != ADMIN_ID:
+        await q.answer(); return
+    if q.data == "delcmdcancel":
+        await q.answer(); await q.edit_message_text("❌ Bekor qilindi."); return
+    cname = q.data.split("_", 1)[1]
+    custom_commands.pop(cname, None)
+    save_custom_commands()
+    await q.answer()
+    await q.edit_message_text(f"✅ /{cname} buyrug'i o'chirildi.")
+    log_event("delete_command", ADMIN_ID, cname)
+
+
+# ─── /fj — faollik jadvali ───────────────────────────────────────────────────
+
+async def faollik_jadvali(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    now        = time.time()
+    total      = len(users)
+    cutoff_24h = now - 86400
+
+    new_24h = sum(1 for e in events if e["type"] == "join" and e["ts"] > cutoff_24h)
+    active_ids = {e["user_id"] for e in events if e["ts"] > cutoff_24h and e["type"] in ("message", "join")}
+    active   = len(active_ids)
+    inactive = total - active
+
+    # Soatlik grafik
+    hourly = {}
+    for i in range(24):
+        t0    = now - (24 - i) * 3600
+        t1    = t0 + 3600
+        label = datetime.fromtimestamp(t0).strftime("%H:00")
+        count = sum(1 for e in events if t0 <= e["ts"] < t1)
+        hourly[label] = count
+
+    lines = [
+        "📊 <b>Faollik jadvali (oxirgi 24 soat)</b>",
+        "",
+        f"👥 Jami foydalanuvchilar: <b>{total}</b>",
+        f"🟢 Faol (24h): <b>{active}</b>",
+        f"🔴 Faol emas (24h): <b>{inactive}</b>",
+        f"🆕 Yangi a'zolar (24h): <b>{new_24h}</b>",
+        "",
+        "⏰ Soatlik faollik:",
+        "─" * 28,
+    ]
+    mx = max(hourly.values(), default=1) or 1
+    for lbl, cnt in hourly.items():
+        bar = "█" * int(cnt / mx * 14) + "░" * (14 - int(cnt / mx * 14))
+        lines.append(f"<code>{lbl} {bar} {cnt}</code>")
+
+    ev_24h = [e for e in events if e["ts"] > cutoff_24h]
+    type_counts: dict = {}
+    for e in ev_24h:
+        type_counts[e["type"]] = type_counts.get(e["type"], 0) + 1
+
+    emoji_map = {
+        "join":           "🆕 Yangi a'zo",
+        "message":        "✉️ Xabarlar",
+        "new_ad":         "📢 Yangi e'lonlar",
+        "delete_ad":      "🗑 O'chirilgan e'lonlar",
+        "admin_reply":    "💬 Admin javoblari",
+        "new_button":     "🔘 Yangi tugmalar",
+        "delete_button":  "🗑 O'chirilgan tugmalar",
+        "new_command":    "⚙️ Yangi buyruqlar",
+        "delete_command": "🗑 O'chirilgan buyruqlar",
+    }
+    lines += ["", "📋 Voqealar (24h):"]
+    if type_counts:
+        for etype, cnt in type_counts.items():
+            lines.append(f"  {emoji_map.get(etype, etype)}: <b>{cnt}</b>")
+    else:
+        lines.append("  Hozircha voqealar yo'q.")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+# ─── Umumiy xabar handler ────────────────────────────────────────────────────
 
 async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -1513,6 +1032,7 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
     text = update.message.text or ""
     tl   = text.lower()
 
+    # Ovoz rejimi
     voice_on  = ["ovozli javob ber", "voice", "ovoz", "speak", "голос", "говори"]
     voice_off = ["ovosiz", "matnli", "text", "без голоса", "without voice", "текст"]
     if any(t in tl for t in voice_on):
@@ -1520,9 +1040,16 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
     if any(t in tl for t in voice_off):
         set_mode(user.id, "text");  await update.message.reply_text("💬 Endi matnli javob beraman!"); return
 
+    # Til tugmasi
     if await lang_button_pressed(update, context):
         return
 
+    # 📞 Telefon raqam kutish holati
+    if str(user.id) in phone_waiting:
+        if await phone_number_received(update, context):
+            return
+
+    # Maxsus buyruqlar (/narx, /info va h.k.)
     if text.startswith("/"):
         cmd = text.lstrip("/").split()[0].lower()
         if cmd in custom_commands:
@@ -1530,25 +1057,7 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
             log_event("message", user.id, f"cmd:{cmd}")
             return
 
-    if get_state(user.id) == "writing_message":
-        username = f"@{user.username}" if user.username else f"id:{user.id}"
-        try:
-            await context.bot.send_message(
-                ADMIN_ID,
-                f"✉️ <b>Foydalanuvchi xabari</b>\n"
-                f"👤 {user.full_name or ''} ({username})\n"
-                f"🆔 <code>{user.id}</code>\n\n"
-                f"💬 {text}\n\n"
-                f"↩️ Javob: /reply {user.id} &lt;matn&gt;",
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            logger.warning(f"Adminga xabar yuborib bo'lmadi: {e}")
-        set_state(user.id, "normal")
-        await update.message.reply_text(tr("message_sent", lang), reply_markup=lang_reply_keyboard())
-        log_event("message", user.id, text[:50])
-        return
-
+    # TuxumAI holati
     if get_state(user.id) == "tuxumai":
         ad_id = context.user_data.get("tuxumai_ad_id")
         ad    = next((a for a in ads if a["id"] == ad_id), None) if ad_id else (ads[-1] if ads else None)
@@ -1558,7 +1067,12 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
         log_event("message", user.id, "tuxumai")
         return
 
+    # ══════════════════════════════════════════════════════
+    # ASOSIY: foydalanuvchi yozsa — AVTOMATIK adminга keladi
+    # Hech narsa bosish shart emas!
+    # ══════════════════════════════════════════════════════
     username = f"@{user.username}" if user.username else f"id:{user.id}"
+
     try:
         await context.bot.send_message(
             ADMIN_ID,
@@ -1576,13 +1090,12 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_text(tr("contact_sent", lang))
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─── main ─────────────────────────────────────────────────────────────────────
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # E'lon qo'shish
     elon_conv = ConversationHandler(
         entry_points=[CommandHandler("elon_photo", elon_photo_start)],
         states={
@@ -1595,52 +1108,25 @@ def main():
         allow_reentry=True,
     )
 
+    # /button — 2 qadam
     btn_conv = ConversationHandler(
         entry_points=[CommandHandler("button", button_create_start)],
         states={
-            BTN_NAME:  [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_name)],
-            BTN_TYPE:  [CallbackQueryHandler(button_type_callback, pattern=r"^btntype_")],
-            BTN_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_value)],
+            BTN_NAME:         [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_name)],
+            BTN_ACTION_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, button_create_value)],
         },
         fallbacks=[CommandHandler("cancel", button_create_cancel)],
         allow_reentry=True,
     )
 
+    # /cmd — 2 qadam
     cmd_conv = ConversationHandler(
         entry_points=[CommandHandler("cmd", cmd_create_start)],
         states={
-            CMD_NAME1: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_name1)],
-            CMD_RESP1: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_resp1)],
-            CMD_NAME2: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_name2)],
-            CMD_RESP2: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_resp2)],
+            CMD_NAME:     [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_name)],
+            CMD_RESPONSE: [MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_create_response)],
         },
         fallbacks=[CommandHandler("cancel", cmd_create_cancel)],
-        allow_reentry=True,
-    )
-
-    order_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(order_button_callback, pattern=r"^order_")],
-        states={
-            ORDER_QTY:     [MessageHandler(filters.TEXT & ~filters.COMMAND, order_qty_received)],
-            ORDER_ADDRESS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, order_address_received),
-                MessageHandler(filters.LOCATION, order_address_received),
-            ],
-            ORDER_PHONE:   [MessageHandler(filters.TEXT & ~filters.COMMAND, order_phone_received)],
-        },
-        fallbacks=[
-            CallbackQueryHandler(order_cancel_callback, pattern=r"^order_cancel$"),
-            CommandHandler("cancel", order_cancel_callback),
-        ],
-        allow_reentry=True,
-    )
-
-    broadcast_conv = ConversationHandler(
-        entry_points=[CommandHandler("broadcast", broadcast_start)],
-        states={
-            BROADCAST_MSG: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
-        },
-        fallbacks=[CommandHandler("cancel", broadcast_cancel)],
         allow_reentry=True,
     )
 
@@ -1650,15 +1136,10 @@ def main():
     app.add_handler(CommandHandler("deletebtn",  button_delete_command))
     app.add_handler(CommandHandler("deletecmd",  cmd_delete_command))
     app.add_handler(CommandHandler("fj",         faollik_jadvali))
-    app.add_handler(CommandHandler("users",      users_list_command))
-    app.add_handler(CommandHandler("orders",     orders_list_command))
-    app.add_handler(CommandHandler("myorders",   my_orders_command))
 
     app.add_handler(elon_conv)
     app.add_handler(btn_conv)
     app.add_handler(cmd_conv)
-    app.add_handler(order_conv)
-    app.add_handler(broadcast_conv)
 
     app.add_handler(CallbackQueryHandler(set_language_callback,      pattern=r"^setlang_"))
     app.add_handler(CallbackQueryHandler(phone_button_callback,      pattern=r"^phone_"))
@@ -1671,10 +1152,8 @@ def main():
     app.add_handler(CallbackQueryHandler(delete_ad_confirm_callback, pattern=r"^deladconfirm_"))
     app.add_handler(CallbackQueryHandler(delete_ad_yes_callback,     pattern=r"^deladyes_"))
     app.add_handler(CallbackQueryHandler(delete_ad_cancel_callback,  pattern=r"^deladcancel$"))
-    app.add_handler(CallbackQueryHandler(button_delete_callback,     pattern=r"^(delbtn_|delbtncat_|delbtncancel)"))
+    app.add_handler(CallbackQueryHandler(button_delete_callback,     pattern=r"^(delbtn_|delbtncancel)"))
     app.add_handler(CallbackQueryHandler(cmd_delete_callback,        pattern=r"^(delcmd_|delcmdcancel)"))
-    app.add_handler(CallbackQueryHandler(order_status_callback,      pattern=r"^ordstatus_"))
-    app.add_handler(CallbackQueryHandler(msgadmin_button_callback,   pattern=r"^msgadmin_"))
 
     app.add_handler(MessageHandler(filters.LOCATION, location_handler))
     app.add_handler(MessageHandler(filters.VOICE,    voice_message_handler))
