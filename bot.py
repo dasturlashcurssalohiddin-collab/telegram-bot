@@ -30,15 +30,16 @@ CHANNEL_ID = "@tuxum_kanal"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ai_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 
-DATA_DIR        = os.path.dirname(os.path.abspath(__file__))
+# Railway Volume uchun DATA_DIR env dan olish
+DATA_DIR        = os.getenv("DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
 ADS_FILE        = os.path.join(DATA_DIR, "ads.json")
 USERS_FILE      = os.path.join(DATA_DIR, "users.json")
 BUTTONS_FILE    = os.path.join(DATA_DIR, "custom_buttons.json")
 COMMANDS_FILE   = os.path.join(DATA_DIR, "custom_commands.json")
 EVENTS_FILE     = os.path.join(DATA_DIR, "events.json")
 LOCATION_FILE   = os.path.join(DATA_DIR, "delivery_location.json")
-ORDERS_FILE     = os.path.join(DATA_DIR, "orders.json")       # YANGI: buyurtmalar
-MESSAGES_FILE   = os.path.join(DATA_DIR, "messages.json")     # YANGI: xabarlar
+ORDERS_FILE     = os.path.join(DATA_DIR, "orders.json")
+MESSAGES_FILE   = os.path.join(DATA_DIR, "messages.json")
 
 ADMIN_LATITUDE  = 41.2995
 ADMIN_LONGITUDE = 69.2401
@@ -82,7 +83,6 @@ T = {
         "ru": "🤖 Хотите пообщаться с TuxumAI? Напишите вопрос:",
         "de": "🤖 Möchten Sie mit TuxumAI chatten? Schreiben Sie Ihre Frage:",
     },
-    # YANGI: Buyurtma xabarlari
     "order_ask_qty": {
         "uz": "🛒 Nechta tuxum buyurtma qilmoqchisiz? (sonini yozing):",
         "en": "🛒 How many eggs would you like to order?",
@@ -193,7 +193,6 @@ BUTTONS_CATALOG = {
         "label": {"uz": "🚚 Olib kelish", "en": "🚚 Delivery", "ru": "🚚 Доставка", "de": "🚚 Lieferung"},
         "type": "delivery",
     },
-    # YANGI tugmalar
     "order": {
         "label": {"uz": "🛍 Buyurtma", "en": "🛍 Order", "ru": "🛍 Заказать", "de": "🛍 Bestellen"},
         "type": "order",
@@ -233,8 +232,19 @@ def load_json(path, default):
 
 
 def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    # Atomic write: avval temp faylga yoz, keyin rename
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception as e:
+        logger.error(f"save_json xato ({path}): {e}")
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
 
 
 ads             = load_json(ADS_FILE, [])
@@ -242,8 +252,8 @@ users           = load_json(USERS_FILE, {})
 custom_buttons  = load_json(BUTTONS_FILE, {})
 custom_commands = load_json(COMMANDS_FILE, {})
 events          = load_json(EVENTS_FILE, [])
-orders          = load_json(ORDERS_FILE, [])      # YANGI
-messages_store  = load_json(MESSAGES_FILE, [])    # YANGI
+orders          = load_json(ORDERS_FILE, [])
+messages_store  = load_json(MESSAGES_FILE, [])
 
 _loc = load_json(LOCATION_FILE, {})
 if _loc:
@@ -262,7 +272,6 @@ def save_orders():          save_json(ORDERS_FILE, orders)
 def save_messages():        save_json(MESSAGES_FILE, messages_store)
 
 def get_lang(uid):
-    # Foydalanuvchi ma'lumotlari dict bo'lishi mumkin (yangi format)
     val = users.get(str(uid), "uz")
     if isinstance(val, dict):
         return val.get("lang", "uz")
@@ -300,13 +309,8 @@ WAIT_PHOTO, WAIT_TEXT, SELECT_BUTTONS, WAIT_INFO = range(4)
 BTN_NAME, BTN_TYPE, BTN_VALUE = range(10, 13)
 CMD_NAME1, CMD_RESP1, CMD_NAME2, CMD_RESP2 = range(20, 24)
 
-# YANGI: Buyurtma holatlari
 ORDER_QTY, ORDER_ADDRESS, ORDER_PHONE = range(30, 33)
-
-# YANGI: Foydalanuvchi xabar holati
 USER_MSG = 40
-
-# YANGI: Broadcast holati
 BROADCAST_MSG = 50
 
 LANG_NAME_TO_CODE = {v: k for k, v in LANG_NAMES.items()}
@@ -505,7 +509,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         users[str(uid)] = {"lang": "uz", "name": user.full_name or "", "joined": time.time()}
         save_users()
         log_event("join", uid, user.full_name or "")
-        # Adminga yangi foydalanuvchi haqida xabar
         try:
             await context.bot.send_message(
                 ADMIN_ID,
@@ -546,11 +549,10 @@ async def lang_button_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# YANGI: BUYURTMA TIZIMI
+# BUYURTMA TIZIMI
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def order_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """E'londagi Buyurtma tugmasi bosilganda"""
     q = update.callback_query
     lang = get_lang(q.from_user.id)
     ad_id = q.data.split("_", 1)[1]
@@ -603,7 +605,6 @@ async def order_phone_received(update: Update, context: ContextTypes.DEFAULT_TYP
     lang = get_lang(user.id)
     phone = update.message.text.strip()
 
-    # Buyurtmani saqlash
     order_id = f"ORD{int(time.time())}"
     order = {
         "id":        order_id,
@@ -621,10 +622,8 @@ async def order_phone_received(update: Update, context: ContextTypes.DEFAULT_TYP
     save_orders()
     set_state(user.id, "normal")
 
-    # Foydalanuvchiga tasdiqlash
     await update.message.reply_text(tr("order_confirm", lang), reply_markup=lang_reply_keyboard())
 
-    # Adminga xabar
     status_label = ORDER_STATUSES["new"].get(lang, "🆕 Yangi")
     try:
         msg = (
@@ -647,7 +646,6 @@ async def order_phone_received(update: Update, context: ContextTypes.DEFAULT_TYP
             ],
         ])
         await context.bot.send_message(ADMIN_ID, msg, parse_mode="HTML", reply_markup=kb)
-        # Agar manzil joylashuv bo'lsa
         loc = context.user_data.get("order_location")
         if loc:
             await context.bot.send_location(ADMIN_ID, latitude=loc["lat"], longitude=loc["lon"])
@@ -670,13 +668,12 @@ async def order_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def order_status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin buyurtma holatini o'zgartiradi"""
     q = update.callback_query
     if q.from_user.id != ADMIN_ID:
         await q.answer("❌ Ruxsat yo'q"); return
     await q.answer()
 
-    parts    = q.data.split("_", 2)  # ordstatus_STATUS_ORDERID
+    parts    = q.data.split("_", 2)
     new_stat = parts[1]
     order_id = parts[2]
 
@@ -694,7 +691,6 @@ async def order_status_callback(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=None
     )
 
-    # Foydalanuvchiga xabar
     user_lang = get_lang(order["user_id"])
     status_local = ORDER_STATUSES.get(new_stat, {}).get(user_lang, new_stat)
     try:
@@ -712,7 +708,6 @@ async def order_status_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def my_orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi o'z buyurtmalarini ko'radi"""
     user = update.effective_user
     lang = get_lang(user.id)
     my = [o for o in orders if o["user_id"] == user.id]
@@ -728,11 +723,10 @@ async def my_orders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# YANGI: FOYDALANUVCHI ↔ ADMIN XABAR TIZIMI
+# FOYDALANUVCHI ↔ ADMIN XABAR TIZIMI
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def msgadmin_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """E'londagi Xabar yozish tugmasi"""
     q = update.callback_query
     lang = get_lang(q.from_user.id)
     set_state(q.from_user.id, "writing_message")
@@ -741,7 +735,6 @@ async def msgadmin_button_callback(update: Update, context: ContextTypes.DEFAULT
 
 
 async def admin_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin /reply <user_id> <matn> orqali javob beradi"""
     if update.effective_user.id != ADMIN_ID:
         return
     args = context.args
@@ -763,7 +756,7 @@ async def admin_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# YANGI: BROADCAST — barcha foydalanuvchilarga xabar
+# BROADCAST
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -799,7 +792,7 @@ async def broadcast_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# YANGI: FOYDALANUVCHILAR RO'YXATI
+# FOYDALANUVCHILAR RO'YXATI
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def users_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -820,7 +813,7 @@ async def users_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# YANGI: BUYURTMALAR RO'YXATI (admin uchun)
+# BUYURTMALAR RO'YXATI (admin)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def orders_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -994,22 +987,35 @@ async def delete_ad_yes_callback(update: Update, context: ContextTypes.DEFAULT_T
     global ads
     ad_id = q.data.split("_", 1)[1]
     deleted_ad = next((a for a in ads if a["id"] == ad_id), None)
-    before = len(ads)
-    ads = [a for a in ads if a["id"] != ad_id]
-    await q.answer()
-    if len(ads) != before:
-        save_ads()
-        await q.edit_message_text("✅ E'lon muvaffaqiyatli o'chirildi.")
-        if deleted_ad:
-            notify = f"🗑 E'lon o'chirildi:\n\n{deleted_ad.get('text','')[:60]}"
-            for uid_str in list(users.keys()):
-                try:
-                    await context.bot.send_message(int(uid_str), notify)
-                except Exception as e:
-                    logger.warning(f"{uid_str} ga xabar yuborib bo'lmadi: {e}")
-        log_event("delete_ad", ADMIN_ID, ad_id)
-    else:
+
+    if not deleted_ad:
+        await q.answer()
         await q.edit_message_text("❌ E'lon topilmadi.")
+        return
+
+    ads = [a for a in ads if a["id"] != ad_id]
+
+    # Atomic write — Railway restart da yo'qolmasin
+    try:
+        save_ads()
+        logger.info(f"E'lon o'chirildi: {ad_id}, qolgan: {len(ads)}")
+    except Exception as e:
+        logger.error(f"Saqlashda xato: {e}")
+        await q.answer()
+        await q.edit_message_text(f"❌ Saqlashda xato: {e}")
+        return
+
+    await q.answer()
+    await q.edit_message_text("✅ E'lon muvaffaqiyatli o'chirildi.")
+
+    notify = f"🗑 E'lon o'chirildi:\n\n{deleted_ad.get('text','')[:60]}"
+    for uid_str in list(users.keys()):
+        try:
+            await context.bot.send_message(int(uid_str), notify)
+        except Exception as e:
+            logger.warning(f"{uid_str} ga xabar yuborib bo'lmadi: {e}")
+
+    log_event("delete_ad", ADMIN_ID, ad_id)
 
 
 async def delete_ad_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1018,7 +1024,7 @@ async def delete_ad_cancel_callback(update: Update, context: ContextTypes.DEFAUL
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TUGMA YARATISH
+# TUGMA YARATISH / O'CHIRISH  ← TO'LIQ TUZATILGAN
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _btn_type_kb():
@@ -1096,27 +1102,93 @@ async def button_create_cancel(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def button_delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    TUZATILGAN: ikkala BUTTONS_CATALOG va custom_buttons ni ko'rsatadi.
+    BUTTONS_CATALOG tugmalari barcha e'lonlardan olib tashlanadi.
+    custom_buttons tugmalari butunlay o'chiriladi.
+    """
     if update.effective_user.id != ADMIN_ID:
         return
-    if not custom_buttons:
-        await update.message.reply_text("❌ Hech qanday maxsus tugma yo'q.")
-        return
+
     rows = []
-    for btn_id, btn in custom_buttons.items():
-        type_icon = {"link": "🔗", "text": "📝", "phone": "📞"}.get(btn.get("btn_type", "text"), "📝")
-        rows.append([InlineKeyboardButton(f"🗑 {type_icon} {btn['name']}", callback_data=f"delbtn_{btn_id}")])
+
+    # 1) E'lon tugmalari (BUTTONS_CATALOG) — qaysilari ishlatilayotganini topamiz
+    used_catalog_btns = set()
+    for ad in ads:
+        for btn_id in ad.get("buttons", []):
+            if btn_id in BUTTONS_CATALOG:
+                used_catalog_btns.add(btn_id)
+
+    if used_catalog_btns:
+        rows.append([InlineKeyboardButton("─── E'lon tugmalari ───", callback_data="delbtn_noop")])
+        for btn_id in used_catalog_btns:
+            cat = BUTTONS_CATALOG[btn_id]
+            label = cat["label"]["uz"]
+            rows.append([InlineKeyboardButton(f"🗑 {label}", callback_data=f"delbtncat_{btn_id}")])
+
+    # 2) Maxsus (custom) tugmalar
+    if custom_buttons:
+        rows.append([InlineKeyboardButton("─── Maxsus tugmalar ───", callback_data="delbtn_noop")])
+        for btn_id, btn in custom_buttons.items():
+            type_icon = {"link": "🔗", "text": "📝", "phone": "📞"}.get(btn.get("btn_type", "text"), "📝")
+            rows.append([InlineKeyboardButton(f"🗑 {type_icon} {btn['name']}", callback_data=f"delbtn_{btn_id}")])
+
+    if not rows:
+        await update.message.reply_text("❌ Hech qanday tugma yo'q.")
+        return
+
     rows.append([InlineKeyboardButton("❌ Bekor", callback_data="delbtncancel")])
-    await update.message.reply_text("🗑 Qaysi tugmani o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(rows))
+    await update.message.reply_text(
+        "🗑 Qaysi tugmani o'chirmoqchisiz?\n\n"
+        "<i>• E'lon tugmalari — barcha e'lonlardan olib tashlanadi\n"
+        "• Maxsus tugmalar — butunlay o'chiriladi</i>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(rows)
+    )
 
 
 async def button_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """TUZATILGAN: catalog va custom tugmalarni to'g'ri o'chiradi"""
     q = update.callback_query
     if q.from_user.id != ADMIN_ID:
         await q.answer(); return
+
+    # Bekor
     if q.data == "delbtncancel":
-        await q.answer(); await q.edit_message_text("❌ Bekor qilindi."); return
-    btn_id = q.data.split("_", 1)[1]
-    btn    = custom_buttons.pop(btn_id, None)
+        await q.answer()
+        await q.edit_message_text("❌ Bekor qilindi.")
+        return
+
+    # Separator tugma — hech narsa qilmaymiz
+    if q.data == "delbtn_noop":
+        await q.answer()
+        return
+
+    # BUTTONS_CATALOG tugmasini barcha e'lonlardan olib tashlash
+    if q.data.startswith("delbtncat_"):
+        btn_id = q.data[len("delbtncat_"):]
+        cat = BUTTONS_CATALOG.get(btn_id)
+        if not cat:
+            await q.answer("❌ Tugma topilmadi.")
+            return
+        count = 0
+        for ad in ads:
+            if btn_id in ad.get("buttons", []):
+                ad["buttons"].remove(btn_id)
+                count += 1
+        save_ads()
+        await q.answer()
+        label = cat["label"]["uz"]
+        await q.edit_message_text(
+            f"✅ <b>{label}</b> tugmasi {count} ta e'londan olib tashlandi.",
+            parse_mode="HTML"
+        )
+        log_event("delete_button", ADMIN_ID, f"catalog:{btn_id}:{count}ta")
+        return
+
+    # Custom tugmani o'chirish
+    btn_id = q.data[len("delbtn_"):]
+    btn = custom_buttons.pop(btn_id, None)
     save_custom_buttons()
     await q.answer()
     if btn:
@@ -1224,7 +1296,7 @@ async def cmd_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FAOLLIK JADVALI (kengaytirilgan)
+# FAOLLIK JADVALI
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def faollik_jadvali(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1240,7 +1312,7 @@ async def faollik_jadvali(update: Update, context: ContextTypes.DEFAULT_TYPE):
     inactive   = total - active
 
     total_orders   = len(orders)
-    new_orders     = sum(1 for o in orders if o["status"] == "new")
+    new_orders_cnt = sum(1 for o in orders if o["status"] == "new")
     done_orders    = sum(1 for o in orders if o["status"] == "done")
 
     hourly = {}
@@ -1260,7 +1332,7 @@ async def faollik_jadvali(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🆕 Yangi a'zolar (24h): <b>{new_24h}</b>",
         "",
         f"🛍 Jami buyurtmalar: <b>{total_orders}</b>",
-        f"🆕 Yangi buyurtmalar: <b>{new_orders}</b>",
+        f"🆕 Yangi buyurtmalar: <b>{new_orders_cnt}</b>",
         f"✅ Bajarilgan: <b>{done_orders}</b>",
         "",
         "⏰ Soatlik faollik:",
@@ -1384,7 +1456,6 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user  = update.effective_user
     lang  = get_lang(user.id)
 
-    # Buyurtma jarayonida joylashuv
     if get_state(user.id) == "ordering":
         context.user_data["order_address"] = f"📍 {update.message.location.latitude}, {update.message.location.longitude}"
         context.user_data["order_location"] = {
@@ -1459,7 +1530,6 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
             log_event("message", user.id, f"cmd:{cmd}")
             return
 
-    # Foydalanuvchi adminga xabar yozmoqda
     if get_state(user.id) == "writing_message":
         username = f"@{user.username}" if user.username else f"id:{user.id}"
         try:
@@ -1488,7 +1558,6 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
         log_event("message", user.id, "tuxumai")
         return
 
-    # Oddiy xabar — adminga yuborish
     username = f"@{user.username}" if user.username else f"id:{user.id}"
     try:
         await context.bot.send_message(
@@ -1514,7 +1583,6 @@ async def generic_message_handler(update: Update, context: ContextTypes.DEFAULT_
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # E'lon qo'shish
     elon_conv = ConversationHandler(
         entry_points=[CommandHandler("elon_photo", elon_photo_start)],
         states={
@@ -1527,7 +1595,6 @@ def main():
         allow_reentry=True,
     )
 
-    # Tugma yaratish
     btn_conv = ConversationHandler(
         entry_points=[CommandHandler("button", button_create_start)],
         states={
@@ -1539,7 +1606,6 @@ def main():
         allow_reentry=True,
     )
 
-    # Buyruq yaratish
     cmd_conv = ConversationHandler(
         entry_points=[CommandHandler("cmd", cmd_create_start)],
         states={
@@ -1552,7 +1618,6 @@ def main():
         allow_reentry=True,
     )
 
-    # YANGI: Buyurtma conversation
     order_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(order_button_callback, pattern=r"^order_")],
         states={
@@ -1570,7 +1635,6 @@ def main():
         allow_reentry=True,
     )
 
-    # YANGI: Broadcast conversation
     broadcast_conv = ConversationHandler(
         entry_points=[CommandHandler("broadcast", broadcast_start)],
         states={
@@ -1580,25 +1644,22 @@ def main():
         allow_reentry=True,
     )
 
-    # Buyruqlar
     app.add_handler(CommandHandler("start",      start))
     app.add_handler(CommandHandler("delete",     delete_command))
     app.add_handler(CommandHandler("reply",      admin_reply_command))
     app.add_handler(CommandHandler("deletebtn",  button_delete_command))
     app.add_handler(CommandHandler("deletecmd",  cmd_delete_command))
     app.add_handler(CommandHandler("fj",         faollik_jadvali))
-    app.add_handler(CommandHandler("users",      users_list_command))       # YANGI
-    app.add_handler(CommandHandler("orders",     orders_list_command))      # YANGI
-    app.add_handler(CommandHandler("myorders",   my_orders_command))        # YANGI
+    app.add_handler(CommandHandler("users",      users_list_command))
+    app.add_handler(CommandHandler("orders",     orders_list_command))
+    app.add_handler(CommandHandler("myorders",   my_orders_command))
 
-    # Conversation handlerlar
     app.add_handler(elon_conv)
     app.add_handler(btn_conv)
     app.add_handler(cmd_conv)
-    app.add_handler(order_conv)       # YANGI
-    app.add_handler(broadcast_conv)   # YANGI
+    app.add_handler(order_conv)
+    app.add_handler(broadcast_conv)
 
-    # Callback handlerlar
     app.add_handler(CallbackQueryHandler(set_language_callback,      pattern=r"^setlang_"))
     app.add_handler(CallbackQueryHandler(phone_button_callback,      pattern=r"^phone_"))
     app.add_handler(CallbackQueryHandler(info_button_callback,       pattern=r"^info_"))
@@ -1610,12 +1671,11 @@ def main():
     app.add_handler(CallbackQueryHandler(delete_ad_confirm_callback, pattern=r"^deladconfirm_"))
     app.add_handler(CallbackQueryHandler(delete_ad_yes_callback,     pattern=r"^deladyes_"))
     app.add_handler(CallbackQueryHandler(delete_ad_cancel_callback,  pattern=r"^deladcancel$"))
-    app.add_handler(CallbackQueryHandler(button_delete_callback,     pattern=r"^(delbtn_|delbtncancel)"))
+    app.add_handler(CallbackQueryHandler(button_delete_callback,     pattern=r"^(delbtn_|delbtncat_|delbtncancel)"))
     app.add_handler(CallbackQueryHandler(cmd_delete_callback,        pattern=r"^(delcmd_|delcmdcancel)"))
-    app.add_handler(CallbackQueryHandler(order_status_callback,      pattern=r"^ordstatus_"))   # YANGI
-    app.add_handler(CallbackQueryHandler(msgadmin_button_callback,   pattern=r"^msgadmin_"))    # YANGI
+    app.add_handler(CallbackQueryHandler(order_status_callback,      pattern=r"^ordstatus_"))
+    app.add_handler(CallbackQueryHandler(msgadmin_button_callback,   pattern=r"^msgadmin_"))
 
-    # Media handlerlar
     app.add_handler(MessageHandler(filters.LOCATION, location_handler))
     app.add_handler(MessageHandler(filters.VOICE,    voice_message_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, generic_message_handler))
