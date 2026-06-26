@@ -135,11 +135,11 @@ BUTTONS_CATALOG = {
         "label": {"uz": "🤖 TuxumAI", "en": "🤖 TuxumAI", "ru": "🤖 TuxumAI", "de": "🤖 TuxumAI"},
         "type": "tuxumai",
     },
-    "m"market": {
-    "label": {"uz": "🛒 Tuxum Market", "en": "🛒 Tuxum Market", "ru": "🛒 Tuxum Market", "de": "🛒 Tuxum Market"},
-    "type": "url",
-    "url": "https://tuxum-market-farg-ona-617360516808.asia-southeast1.run.app/",   # ✅ yangi
-},
+    "market": {
+        "label": {"uz": "🛒 Tuxum Market", "en": "🛒 Tuxum Market", "ru": "🛒 Tuxum Market", "de": "🛒 Tuxum Market"},
+        "type": "url",
+        "url": "https://tuxum-market-farg-ona-617360516808.asia-southeast1.run.app/",
+    },
     "delivery": {
         "label": {"uz": "🚚 Olib kelish", "en": "🚚 Delivery", "ru": "🚚 Доставка", "de": "🚚 Lieferung"},
         "type": "delivery",
